@@ -46,19 +46,19 @@ fn keyboard_panning(
         let mut delta = Vec3::ZERO;
 
         if keyboard.pressed(KeyCode::KeyW) {
-            delta += transform.forward().as_vec3().with_y(0.0) * KEYBOARD_PAN_SPEED * time.delta_seconds();
+            delta += transform.forward().as_vec3().with_y(0.0).normalize();
         }
         if keyboard.pressed(KeyCode::KeyS) {
-            delta += transform.back().as_vec3().with_y(0.0) * KEYBOARD_PAN_SPEED * time.delta_seconds();
+            delta += transform.back().as_vec3().with_y(0.0).normalize();
         }
         if keyboard.pressed(KeyCode::KeyA) {
-            delta += transform.left().as_vec3().with_y(0.0) * KEYBOARD_PAN_SPEED * time.delta_seconds();
+            delta += transform.left().as_vec3().with_y(0.0).normalize();
         }
         if keyboard.pressed(KeyCode::KeyD) {
-            delta += transform.right().as_vec3().with_y(0.0) * KEYBOARD_PAN_SPEED * time.delta_seconds();
+            delta += transform.right().as_vec3().with_y(0.0).normalize();
         }
 
-        transform.translation += delta;
+        transform.translation += delta * KEYBOARD_PAN_SPEED * time.delta_seconds();
     }
 }
 
