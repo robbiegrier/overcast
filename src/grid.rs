@@ -14,6 +14,89 @@ impl Plugin for GridPlugin {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+pub struct GridArea {
+    min: GridCell,
+    max: GridCell,
+}
+
+impl GridArea {
+    pub fn at(location: Vec3, width: i32, height: i32) -> Self {
+        let hover_cell = GridCell::at(location);
+        let mut min = hover_cell.position.clone();
+        let mut max = hover_cell.position.clone();
+
+        if width % 2 != 0 {
+            let radius = (width - 1) / 2;
+            min.x -= radius;
+            max.x += radius;
+        } else {
+            let radius = width / 2;
+            min.x -= radius - 1;
+            max.x += radius;
+        }
+
+        if height % 2 != 0 {
+            let radius = (height - 1) / 2;
+            min.y -= radius;
+            max.y += radius;
+        } else {
+            let radius = height / 2;
+            min.y -= radius - 1;
+            max.y += radius;
+        }
+
+        Self {
+            min: GridCell::new(min.x, min.y),
+            max: GridCell::new(max.x, max.y),
+        }
+    }
+
+    pub fn center(&self) -> Vec3 {
+        let center_2d = (self.min.min_corner() + self.max.max_corner()) / 2.0;
+        Vec3::new(center_2d.x, 0.0, center_2d.z)
+    }
+
+    pub fn dimensions(&self) -> Vec2 {
+        let max = self.max.max_corner();
+        let min = self.min.min_corner();
+        Vec2 {
+            x: max.x - min.x,
+            y: max.z - min.z,
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct GridCell {
+    position: IVec2,
+}
+
+impl GridCell {
+    pub fn new(x: i32, y: i32) -> Self {
+        Self {
+            position: IVec2::new(x, y),
+        }
+    }
+
+    pub fn at(location: Vec3) -> Self {
+        let position = IVec2::new(location.x.floor() as i32, location.z.floor() as i32);
+        Self { position }
+    }
+
+    pub fn center(&self) -> Vec3 {
+        Vec3::new(self.position.x as f32 + 0.5, 0.0, self.position.y as f32 + 0.5)
+    }
+
+    pub fn max_corner(&self) -> Vec3 {
+        Vec3::new(self.position.x as f32 + 1.0, 0.0, self.position.y as f32 + 1.0)
+    }
+
+    pub fn min_corner(&self) -> Vec3 {
+        Vec3::new(self.position.x as f32, 0.0, self.position.y as f32)
+    }
+}
+
 #[derive(Component)]
 pub struct Ground;
 

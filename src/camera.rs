@@ -2,11 +2,11 @@ use std::f32::consts::FRAC_PI_2;
 
 use bevy::{input::mouse::MouseWheel, prelude::*};
 
-use crate::grid::Ground;
+use crate::grid::*;
 
 const KEYBOARD_PAN_SPEED: f32 = 10.0;
 const KEYBOARD_ROTATE_SPEED: f32 = 1.0;
-const MOUSE_PAN_SPEED: f32 = 3.0;
+const MOUSE_PAN_SPEED: f32 = 2.0;
 const MOUSE_ROTATE_SPEED: f32 = 0.25;
 const SCROLL_SPEED: f32 = 100.0;
 
@@ -18,6 +18,8 @@ pub struct PlayerCameraController {
     rotating_in_progress: bool,
     mouse_ground_position: Vec3,
     camera_center_ground_position: Vec3,
+    brush_width: i32,
+    brush_height: i32,
 }
 
 impl PlayerCameraController {
@@ -29,6 +31,8 @@ impl PlayerCameraController {
             rotating_in_progress: false,
             mouse_ground_position: Vec3::ZERO,
             camera_center_ground_position: Vec3::ZERO,
+            brush_width: 2,
+            brush_height: 2,
         }
     }
 }
@@ -41,7 +45,14 @@ impl Plugin for CameraPlugin {
             Update,
             (
                 update_cursor_locations,
-                (keyboard_panning, mouse_zoom, mouse_panning, keyboard_rotating, mouse_rotating),
+                (
+                    keyboard_panning,
+                    mouse_zoom,
+                    mouse_panning,
+                    keyboard_rotating,
+                    mouse_rotating,
+                    adjust_brush_size,
+                ),
             ),
         );
     }
@@ -210,10 +221,24 @@ fn update_cursor_locations(
 
                 controller.mouse_ground_position = point;
 
+                let single_cell = GridCell::at(controller.mouse_ground_position);
+                // gizmos.rounded_rect(
+                //     single_cell.center() + ground.up() * 0.01,
+                //     Quat::from_rotation_x(FRAC_PI_2),
+                //     Vec2::new(1.0, 1.0),
+                //     Color::linear_rgba(1.0, 1.0, 1.0, 1.0),
+                // );
+
+                let area = GridArea::at(
+                    controller.mouse_ground_position,
+                    controller.brush_width,
+                    controller.brush_height,
+                );
+
                 gizmos.rounded_rect(
-                    controller.mouse_ground_position + ground.up() * 0.01,
+                    area.center() + ground.up() * 0.01,
                     Quat::from_rotation_x(FRAC_PI_2),
-                    Vec2::new(1.0, 1.0),
+                    area.dimensions(),
                     Color::linear_rgba(0.0, 1.0, 1.0, 1.0),
                 );
             }
@@ -227,4 +252,34 @@ fn update_cursor_locations(
             controller.camera_center_ground_position = center_point;
         };
     };
+}
+
+fn adjust_brush_size(mut query: Query<&mut PlayerCameraController>, keyboard: Res<ButtonInput<KeyCode>>) {
+    let mut controller = query.single_mut();
+
+    if keyboard.just_pressed(KeyCode::KeyR) {
+        controller.brush_width += 1;
+        controller.brush_height += 1;
+    }
+    if keyboard.just_pressed(KeyCode::KeyF) {
+        controller.brush_width -= 1;
+        controller.brush_height -= 1;
+    }
+
+    if keyboard.just_pressed(KeyCode::BracketRight) {
+        controller.brush_width += 1;
+    }
+    if keyboard.just_pressed(KeyCode::BracketLeft) {
+        controller.brush_width -= 1;
+    }
+
+    if keyboard.just_pressed(KeyCode::Equal) {
+        controller.brush_height += 1;
+    }
+    if keyboard.just_pressed(KeyCode::Minus) {
+        controller.brush_height -= 1;
+    }
+
+    controller.brush_width = controller.brush_width.max(1);
+    controller.brush_height = controller.brush_height.max(1);
 }
