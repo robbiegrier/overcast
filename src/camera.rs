@@ -1,11 +1,13 @@
+use std::f32::consts::FRAC_PI_2;
+
 use bevy::{input::mouse::MouseWheel, prelude::*};
 
-use crate::Ground;
+use crate::grid::Ground;
 
 const KEYBOARD_PAN_SPEED: f32 = 10.0;
 const KEYBOARD_ROTATE_SPEED: f32 = 1.0;
-const MOUSE_PAN_SPEED: f32 = 2.5;
-const MOUSE_ROTATE_SPEED: f32 = 0.5;
+const MOUSE_PAN_SPEED: f32 = 3.0;
+const MOUSE_ROTATE_SPEED: f32 = 0.25;
 const SCROLL_SPEED: f32 = 100.0;
 
 #[derive(Component, Debug)]
@@ -14,8 +16,8 @@ pub struct PlayerCameraController {
     panning_in_progress: bool,
     mouse_rotating_last_position: Vec2,
     rotating_in_progress: bool,
-    pub mouse_ground_position: Vec3,
-    pub camera_center_ground_position: Vec3,
+    mouse_ground_position: Vec3,
+    camera_center_ground_position: Vec3,
 }
 
 impl PlayerCameraController {
@@ -35,7 +37,7 @@ pub struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, start).add_systems(
+        app.add_systems(Startup, spawn_camera).add_systems(
             Update,
             (
                 update_cursor_locations,
@@ -45,7 +47,7 @@ impl Plugin for CameraPlugin {
     }
 }
 
-fn start(mut commands: Commands) {
+fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera3dBundle {
             transform: Transform::from_xyz(15.0, 15.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y),
@@ -201,43 +203,28 @@ fn update_cursor_locations(
     let mut controller = controller_query.single_mut();
     let ground = ground_query.single();
 
-    let Some(cursor_position) = windows.single().cursor_position() else {
-        return;
-    };
+    if let Some(cursor_position) = windows.single().cursor_position() {
+        if let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) {
+            if let Some(distance) = ray.intersect_plane(ground.translation(), InfinitePlane3d::new(ground.up())) {
+                let point = ray.get_point(distance);
 
-    let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
-        return;
-    };
+                controller.mouse_ground_position = point;
 
-    let Some(distance) = ray.intersect_plane(ground.translation(), InfinitePlane3d::new(ground.up())) else {
-        return;
-    };
-    let point = ray.get_point(distance);
-
-    controller.mouse_ground_position = point;
-
-    gizmos.circle(
-        controller.mouse_ground_position + ground.up() * 0.01,
-        ground.up(),
-        0.2,
-        Color::WHITE,
-    );
+                gizmos.rounded_rect(
+                    controller.mouse_ground_position + ground.up() * 0.01,
+                    Quat::from_rotation_x(FRAC_PI_2),
+                    Vec2::new(1.0, 1.0),
+                    Color::linear_rgba(0.0, 1.0, 1.0, 1.0),
+                );
+            }
+        }
+    }
 
     let window_center = Vec2::new(windows.single().width() / 2.0, windows.single().height() / 2.0);
-    let Some(ray_center) = camera.viewport_to_world(camera_transform, window_center) else {
-        return;
+    if let Some(ray_center) = camera.viewport_to_world(camera_transform, window_center) {
+        if let Some(center_distance) = ray_center.intersect_plane(ground.translation(), InfinitePlane3d::new(ground.up())) {
+            let center_point = ray_center.get_point(center_distance);
+            controller.camera_center_ground_position = center_point;
+        };
     };
-
-    let Some(center_distance) = ray_center.intersect_plane(ground.translation(), InfinitePlane3d::new(ground.up())) else {
-        return;
-    };
-    let center_point = ray_center.get_point(center_distance);
-    controller.camera_center_ground_position = center_point;
-
-    // gizmos.circle(
-    //     controller.camera_center_ground_position + ground.up() * 0.01,
-    //     ground.up(),
-    //     0.2,
-    //     Color::WHITE,
-    // );
 }
