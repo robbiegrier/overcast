@@ -1,4 +1,4 @@
-use crate::grid::{GridArea, Ground};
+use crate::grid::{Grid, GridArea, Ground};
 use bevy::prelude::*;
 use std::f32::consts::FRAC_PI_2;
 
@@ -6,7 +6,7 @@ pub struct BrushPlugin;
 
 impl Plugin for BrushPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_brush).add_systems(Update, (update_brush, adjust_brush_size));
+        app.add_systems(Startup, spawn_brush).add_systems(Update, (update_brush, adjust_brush_size, handle_paint));
     }
 }
 
@@ -87,4 +87,33 @@ fn adjust_brush_size(mut query: Query<&mut Brush>, keyboard: Res<ButtonInput<Key
     }
 
     brush.dimensions = brush.dimensions.max(IVec2::new(1, 1));
+}
+
+fn handle_paint(
+    query: Query<&mut Brush>,
+    mut grid_query: Query<&mut Grid>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+) {
+    let brush = query.single();
+    let mut grid = grid_query.single_mut();
+
+    if mouse.pressed(MouseButton::Left)
+        && !keyboard.any_pressed([KeyCode::AltLeft, KeyCode::ShiftLeft, KeyCode::ControlLeft])
+    {
+        let area = GridArea::at(brush.ground_position, brush.dimensions.x, brush.dimensions.y);
+
+        for cell in area.iter() {
+            if let Some(occupancy) = grid.is_occupied(cell) {
+                if !occupancy {
+                    println!("marking {:?}", cell);
+                    grid.mark_occupied(cell);
+                } else {
+                    println!("already marked {:?}", cell);
+                }
+            } else {
+                println!("Cannot mark {:?}, out of bounds", cell);
+            }
+        }
+    }
 }

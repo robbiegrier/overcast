@@ -3,7 +3,7 @@ use bevy::{input::mouse::MouseWheel, prelude::*};
 
 const KEYBOARD_PAN_SPEED: f32 = 10.0;
 const KEYBOARD_ROTATE_SPEED: f32 = 1.0;
-const MOUSE_PAN_SPEED: f32 = 2.0;
+const MOUSE_PAN_SPEED: f32 = 5.0;
 const MOUSE_ROTATE_SPEED: f32 = 0.25;
 const SCROLL_SPEED: f32 = 100.0;
 
