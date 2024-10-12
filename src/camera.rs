@@ -1,13 +1,21 @@
 use bevy::{input::mouse::MouseWheel, prelude::*};
 
+use crate::Ground;
+
 const KEYBOARD_PAN_SPEED: f32 = 10.0;
+const KEYBOARD_ROTATE_SPEED: f32 = 1.0;
 const MOUSE_PAN_SPEED: f32 = 2.5;
+const MOUSE_ROTATE_SPEED: f32 = 0.5;
 const SCROLL_SPEED: f32 = 100.0;
 
 #[derive(Component, Debug)]
 pub struct PlayerCameraController {
     mouse_panning_last_position: Vec2,
     panning_in_progress: bool,
+    mouse_rotating_last_position: Vec2,
+    rotating_in_progress: bool,
+    pub mouse_ground_position: Vec3,
+    pub camera_center_ground_position: Vec3,
 }
 
 impl PlayerCameraController {
@@ -15,6 +23,10 @@ impl PlayerCameraController {
         Self {
             mouse_panning_last_position: Vec2::ZERO,
             panning_in_progress: false,
+            mouse_rotating_last_position: Vec2::ZERO,
+            rotating_in_progress: false,
+            mouse_ground_position: Vec3::ZERO,
+            camera_center_ground_position: Vec3::ZERO,
         }
     }
 }
@@ -23,7 +35,13 @@ pub struct CameraPlugin;
 
 impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, start).add_systems(Update, (keyboard_panning, mouse_zoom, mouse_panning));
+        app.add_systems(Startup, start).add_systems(
+            Update,
+            (
+                update_cursor_locations,
+                (keyboard_panning, mouse_zoom, mouse_panning, keyboard_rotating, mouse_rotating),
+            ),
+        );
     }
 }
 
@@ -81,30 +99,145 @@ fn mouse_zoom(
 fn mouse_panning(
     mut query: Query<(&mut Transform, &mut PlayerCameraController)>,
     mouse: Res<ButtonInput<MouseButton>>,
+    keyboard: Res<ButtonInput<KeyCode>>,
     windows: Query<&Window>,
     time: Res<Time>,
 ) {
     if let Ok((mut transform, mut controller)) = query.get_single_mut() {
-        if mouse.just_pressed(MouseButton::Right) {
+        if mouse.just_pressed(MouseButton::Right)
+            || (mouse.just_pressed(MouseButton::Left) && keyboard.pressed(KeyCode::AltLeft))
+        {
             if let Some(cursor_position) = windows.single().cursor_position() {
                 controller.mouse_panning_last_position = cursor_position;
                 controller.panning_in_progress = true;
             }
-        } else if mouse.just_released(MouseButton::Right) {
+        } else if mouse.just_released(MouseButton::Right) || (mouse.just_released(MouseButton::Left)) {
             controller.panning_in_progress = false;
         }
 
         if controller.panning_in_progress {
-            if mouse.pressed(MouseButton::Right) {
-                if let Some(cursor_position) = windows.single().cursor_position() {
-                    let delta_mouse_drag = cursor_position - controller.mouse_panning_last_position;
-                    let vertical = transform.forward().with_y(0.0).normalize() * delta_mouse_drag.y;
-                    let horizontal = transform.left().with_y(0.0).normalize() * delta_mouse_drag.x;
-                    let delta = (vertical + horizontal) * MOUSE_PAN_SPEED * time.delta_seconds();
-                    transform.translation += delta;
-                    controller.mouse_panning_last_position = cursor_position;
-                }
+            if let Some(cursor_position) = windows.single().cursor_position() {
+                let delta_mouse_drag = cursor_position - controller.mouse_panning_last_position;
+                let vertical = transform.forward().with_y(0.0).normalize() * delta_mouse_drag.y;
+                let horizontal = transform.left().with_y(0.0).normalize() * delta_mouse_drag.x;
+                let delta = (vertical + horizontal) * MOUSE_PAN_SPEED * time.delta_seconds();
+                transform.translation += delta;
+                controller.mouse_panning_last_position = cursor_position;
             }
         }
     }
+}
+
+fn keyboard_rotating(
+    mut query: Query<(&mut Transform, &PlayerCameraController)>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    time: Res<Time>,
+) {
+    if let Ok((mut transform, controller)) = query.get_single_mut() {
+        let mut delta_angle = 0.0f32;
+
+        if keyboard.pressed(KeyCode::KeyQ) {
+            delta_angle += KEYBOARD_ROTATE_SPEED;
+        }
+        if keyboard.pressed(KeyCode::KeyE) {
+            delta_angle -= KEYBOARD_ROTATE_SPEED;
+        }
+
+        if delta_angle != 0.0 {
+            let rotate_point = controller.camera_center_ground_position.with_y(transform.translation.y);
+            let quat = Quat::from_rotation_y(delta_angle * time.delta_seconds());
+            transform.rotate_around(rotate_point, quat);
+        }
+    }
+}
+
+fn mouse_rotating(
+    mut query: Query<(&mut Transform, &mut PlayerCameraController)>,
+    mouse: Res<ButtonInput<MouseButton>>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    windows: Query<&Window>,
+    time: Res<Time>,
+) {
+    if let Ok((mut transform, mut controller)) = query.get_single_mut() {
+        if mouse.just_pressed(MouseButton::Middle)
+            || (mouse.just_pressed(MouseButton::Left) && keyboard.pressed(KeyCode::ControlLeft))
+        {
+            if let Some(cursor_position) = windows.single().cursor_position() {
+                controller.mouse_rotating_last_position = cursor_position;
+                controller.rotating_in_progress = true;
+            }
+        } else if mouse.just_released(MouseButton::Middle) || (mouse.just_released(MouseButton::Left)) {
+            controller.rotating_in_progress = false;
+        }
+
+        if controller.rotating_in_progress {
+            if let Some(cursor_position) = windows.single().cursor_position() {
+                let delta_mouse_drag = cursor_position - controller.mouse_rotating_last_position;
+
+                let quat_horizontal = Quat::from_rotation_y(-delta_mouse_drag.x * MOUSE_ROTATE_SPEED * time.delta_seconds());
+                let quat_vertical = Quat::from_axis_angle(
+                    transform.right().as_vec3(),
+                    -delta_mouse_drag.y * MOUSE_ROTATE_SPEED * time.delta_seconds(),
+                );
+                let rotate_point = controller.camera_center_ground_position.with_y(transform.translation.y);
+
+                transform.rotate_around(controller.camera_center_ground_position, quat_vertical);
+                transform.rotate_around(rotate_point, quat_horizontal);
+
+                controller.mouse_rotating_last_position = cursor_position;
+            }
+        }
+    }
+}
+
+fn update_cursor_locations(
+    camera_query: Query<(&Camera, &GlobalTransform)>,
+    mut controller_query: Query<&mut PlayerCameraController>,
+    ground_query: Query<&GlobalTransform, With<Ground>>,
+    windows: Query<&Window>,
+    mut gizmos: Gizmos,
+) {
+    let (camera, camera_transform) = camera_query.single();
+    let mut controller = controller_query.single_mut();
+    let ground = ground_query.single();
+
+    let Some(cursor_position) = windows.single().cursor_position() else {
+        return;
+    };
+
+    let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
+        return;
+    };
+
+    let Some(distance) = ray.intersect_plane(ground.translation(), InfinitePlane3d::new(ground.up())) else {
+        return;
+    };
+    let point = ray.get_point(distance);
+
+    controller.mouse_ground_position = point;
+
+    gizmos.circle(
+        controller.mouse_ground_position + ground.up() * 0.01,
+        ground.up(),
+        0.2,
+        Color::WHITE,
+    );
+
+    let window_center = Vec2::new(windows.single().width() / 2.0, windows.single().height() / 2.0);
+    let Some(ray_center) = camera.viewport_to_world(camera_transform, window_center) else {
+        return;
+    };
+
+    let Some(center_distance) = ray_center.intersect_plane(ground.translation(), InfinitePlane3d::new(ground.up())) else {
+        return;
+    };
+    let center_point = ray_center.get_point(center_distance);
+    controller.camera_center_ground_position = center_point;
+
+    // gizmos.circle(
+    //     controller.camera_center_ground_position + ground.up() * 0.01,
+    //     ground.up(),
+    //     0.2,
+    //     Color::WHITE,
+    // );
 }
