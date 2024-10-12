@@ -1,8 +1,5 @@
-use std::f32::consts::FRAC_PI_2;
-
-use bevy::{input::mouse::MouseWheel, prelude::*};
-
 use crate::grid::*;
+use bevy::{input::mouse::MouseWheel, prelude::*};
 
 const KEYBOARD_PAN_SPEED: f32 = 10.0;
 const KEYBOARD_ROTATE_SPEED: f32 = 1.0;
@@ -16,10 +13,7 @@ pub struct PlayerCameraController {
     panning_in_progress: bool,
     mouse_rotating_last_position: Vec2,
     rotating_in_progress: bool,
-    mouse_ground_position: Vec3,
     camera_center_ground_position: Vec3,
-    brush_width: i32,
-    brush_height: i32,
 }
 
 impl PlayerCameraController {
@@ -29,10 +23,7 @@ impl PlayerCameraController {
             panning_in_progress: false,
             mouse_rotating_last_position: Vec2::ZERO,
             rotating_in_progress: false,
-            mouse_ground_position: Vec3::ZERO,
             camera_center_ground_position: Vec3::ZERO,
-            brush_width: 2,
-            brush_height: 2,
         }
     }
 }
@@ -44,15 +35,8 @@ impl Plugin for CameraPlugin {
         app.add_systems(Startup, spawn_camera).add_systems(
             Update,
             (
-                update_cursor_locations,
-                (
-                    keyboard_panning,
-                    mouse_zoom,
-                    mouse_panning,
-                    keyboard_rotating,
-                    mouse_rotating,
-                    adjust_brush_size,
-                ),
+                update_camera_raycast,
+                (keyboard_panning, mouse_zoom, mouse_panning, keyboard_rotating, mouse_rotating),
             ),
         );
     }
@@ -203,47 +187,15 @@ fn mouse_rotating(
     }
 }
 
-fn update_cursor_locations(
+fn update_camera_raycast(
     camera_query: Query<(&Camera, &GlobalTransform)>,
     mut controller_query: Query<&mut PlayerCameraController>,
     ground_query: Query<&GlobalTransform, With<Ground>>,
     windows: Query<&Window>,
-    mut gizmos: Gizmos,
 ) {
     let (camera, camera_transform) = camera_query.single();
     let mut controller = controller_query.single_mut();
     let ground = ground_query.single();
-
-    if let Some(cursor_position) = windows.single().cursor_position() {
-        if let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) {
-            if let Some(distance) = ray.intersect_plane(ground.translation(), InfinitePlane3d::new(ground.up())) {
-                let point = ray.get_point(distance);
-
-                controller.mouse_ground_position = point;
-
-                let single_cell = GridCell::at(controller.mouse_ground_position);
-                // gizmos.rounded_rect(
-                //     single_cell.center() + ground.up() * 0.01,
-                //     Quat::from_rotation_x(FRAC_PI_2),
-                //     Vec2::new(1.0, 1.0),
-                //     Color::linear_rgba(1.0, 1.0, 1.0, 1.0),
-                // );
-
-                let area = GridArea::at(
-                    controller.mouse_ground_position,
-                    controller.brush_width,
-                    controller.brush_height,
-                );
-
-                gizmos.rounded_rect(
-                    area.center() + ground.up() * 0.01,
-                    Quat::from_rotation_x(FRAC_PI_2),
-                    area.dimensions(),
-                    Color::linear_rgba(0.0, 1.0, 1.0, 1.0),
-                );
-            }
-        }
-    }
 
     let window_center = Vec2::new(windows.single().width() / 2.0, windows.single().height() / 2.0);
     if let Some(ray_center) = camera.viewport_to_world(camera_transform, window_center) {
@@ -252,34 +204,4 @@ fn update_cursor_locations(
             controller.camera_center_ground_position = center_point;
         };
     };
-}
-
-fn adjust_brush_size(mut query: Query<&mut PlayerCameraController>, keyboard: Res<ButtonInput<KeyCode>>) {
-    let mut controller = query.single_mut();
-
-    if keyboard.just_pressed(KeyCode::KeyR) {
-        controller.brush_width += 1;
-        controller.brush_height += 1;
-    }
-    if keyboard.just_pressed(KeyCode::KeyF) {
-        controller.brush_width -= 1;
-        controller.brush_height -= 1;
-    }
-
-    if keyboard.just_pressed(KeyCode::BracketRight) {
-        controller.brush_width += 1;
-    }
-    if keyboard.just_pressed(KeyCode::BracketLeft) {
-        controller.brush_width -= 1;
-    }
-
-    if keyboard.just_pressed(KeyCode::Equal) {
-        controller.brush_height += 1;
-    }
-    if keyboard.just_pressed(KeyCode::Minus) {
-        controller.brush_height -= 1;
-    }
-
-    controller.brush_width = controller.brush_width.max(1);
-    controller.brush_height = controller.brush_height.max(1);
 }

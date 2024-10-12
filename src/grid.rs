@@ -84,10 +84,6 @@ impl GridCell {
         Self { position }
     }
 
-    pub fn center(&self) -> Vec3 {
-        Vec3::new(self.position.x as f32 + 0.5, 0.0, self.position.y as f32 + 0.5)
-    }
-
     pub fn max_corner(&self) -> Vec3 {
         Vec3::new(self.position.x as f32 + 1.0, 0.0, self.position.y as f32 + 1.0)
     }
