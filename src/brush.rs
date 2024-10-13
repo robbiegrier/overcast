@@ -100,6 +100,13 @@ fn toggle_brush_mode(mut query: Query<&mut Brush>, keyboard: Res<ButtonInput<Key
             BrushMode::Eraser => BrushMode::Building,
         }
     }
+
+    if keyboard.just_pressed(KeyCode::ShiftLeft) || keyboard.just_released(KeyCode::ShiftLeft) {
+        brush.mode = match brush.mode {
+            BrushMode::Building => BrushMode::Eraser,
+            BrushMode::Eraser => BrushMode::Building,
+        }
+    }
 }
 
 fn adjust_brush_size(mut query: Query<&mut Brush>, keyboard: Res<ButtonInput<KeyCode>>) {
@@ -143,9 +150,7 @@ fn handle_brush_action(
     let brush = query.single();
     let mut grid = grid_query.single_mut();
 
-    if mouse.just_pressed(MouseButton::Left)
-        && !keyboard.any_pressed([KeyCode::AltLeft, KeyCode::ShiftLeft, KeyCode::ControlLeft])
-    {
+    if mouse.just_pressed(MouseButton::Left) && !keyboard.any_pressed([KeyCode::AltLeft, KeyCode::ControlLeft]) {
         match brush.mode {
             BrushMode::Building => place_building(commands, brush, &mut grid, meshes, materials),
             BrushMode::Eraser => erase(commands, brush, &mut grid),
@@ -163,8 +168,8 @@ fn place_building(
     let area = GridArea::at(brush.ground_position, brush.dimensions.x, brush.dimensions.y);
 
     let rheight = rand::thread_rng().gen_range(1.0..5.0);
-    let rgray = rand::thread_rng().gen_range(0.15..0.75);
-    let alley_width = 0.1;
+    let rgray = rand::thread_rng().gen_range(0.1..0.5);
+    let alley_width = 0.3;
 
     if grid.is_valid_paint_area(area) {
         let size = area.dimensions();
@@ -190,7 +195,6 @@ fn erase(mut commands: Commands, brush: &Brush, grid: &mut Grid) {
     for cell in area.iter() {
         if let Ok(entity_slot) = grid.entity_at(cell) {
             if let Some(entity) = entity_slot {
-                println!("want to erase {:?}", entity);
                 grid.erase(entity);
                 commands.entity(entity).despawn_recursive();
             }

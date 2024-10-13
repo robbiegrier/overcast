@@ -1,5 +1,12 @@
+use std::ops::Range;
+
 use crate::grid::*;
-use bevy::{input::mouse::MouseWheel, prelude::*};
+use bevy::{
+    core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping},
+    input::mouse::MouseWheel,
+    prelude::*,
+    render::view::{ColorGrading, ColorGradingGlobal, ColorGradingSection},
+};
 
 const KEYBOARD_PAN_SPEED: f32 = 10.0;
 const KEYBOARD_ROTATE_SPEED: f32 = 1.0;
@@ -58,9 +65,53 @@ impl Plugin for CameraPlugin {
 fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera3dBundle {
+            tonemapping: Tonemapping::ReinhardLuminance,
+            color_grading: ColorGrading {
+                highlights: ColorGradingSection {
+                    contrast: 0.5,
+                    gain: 0.5,
+                    lift: 0.5,
+                    gamma: 1.0,
+                    saturation: 0.5,
+                },
+                global: ColorGradingGlobal {
+                    exposure: 0.5,
+                    hue: 0.5,
+                    midtones_range: Range::from(0.1..1.0),
+                    post_saturation: 0.5,
+                    temperature: 1.0,
+                    tint: 1.0,
+                },
+                midtones: ColorGradingSection {
+                    contrast: 0.5,
+                    gain: 0.5,
+                    lift: 0.5,
+                    gamma: 1.0,
+                    saturation: 0.5,
+                },
+                shadows: ColorGradingSection {
+                    contrast: 0.5,
+                    gain: 0.5,
+                    lift: 0.5,
+                    gamma: 1.0,
+                    saturation: 0.5,
+                },
+                ..default()
+            },
             transform: Transform::from_xyz(15.0, 15.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
         },
+        FogSettings {
+            color: Color::srgba(0.1, 0.1, 0.1, 1.0),
+            directional_light_color: Color::srgba(1.0, 0.95, 0.85, 0.5),
+            directional_light_exponent: 30.0,
+            falloff: FogFalloff::from_visibility_colors(
+                100.0,                        // distance in world units up to which objects retain visibility (>= 5% contrast)
+                Color::srgb(0.1, 0.1, 0.1), // atmospheric extinction color (after light is lost due to absorption by atmospheric particles)
+                Color::srgb(0.8, 0.844, 1.0), // atmospheric inscattering color (light gained due to scattering from the sun)
+            ),
+        },
+        BloomSettings::OLD_SCHOOL,
         PlayerCameraController::new(),
     ));
 }
