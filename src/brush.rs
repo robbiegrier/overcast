@@ -1,5 +1,10 @@
-use crate::grid::{Grid, GridArea, Ground};
+use crate::{
+    building::Building,
+    camera::PlayerCameraController,
+    grid::{Grid, GridArea, Ground},
+};
 use bevy::prelude::*;
+use rand::Rng;
 use std::f32::consts::FRAC_PI_2;
 
 pub struct BrushPlugin;
@@ -30,13 +35,14 @@ fn spawn_brush(mut commands: Commands) {
 }
 
 fn update_brush(
-    camera_query: Query<(&Camera, &GlobalTransform)>,
+    camera_query: Query<(&Camera, &PlayerCameraController, &GlobalTransform)>,
     mut brush_query: Query<&mut Brush>,
     ground_query: Query<&GlobalTransform, With<Ground>>,
+    grid_query: Query<&Grid>,
     windows: Query<&Window>,
     mut gizmos: Gizmos,
 ) {
-    let (camera, camera_transform) = camera_query.single();
+    let (camera, controller, camera_transform) = camera_query.single();
     let mut brush = brush_query.single_mut();
     let ground = ground_query.single();
 
@@ -49,11 +55,20 @@ fn update_brush(
 
                 let area = GridArea::at(brush.ground_position, brush.dimensions.x, brush.dimensions.y);
 
+                let mut gizmo_color = match grid_query.single().is_valid_paint_area(area) {
+                    true => Color::linear_rgba(0.0, 1.0, 1.0, 0.8),
+                    false => Color::linear_rgba(0.25, 0.0, 0.0, 0.8),
+                };
+
+                if controller.is_moving() {
+                    gizmo_color = gizmo_color.with_alpha(0.25);
+                }
+
                 gizmos.rounded_rect(
                     area.center() + ground.up() * 0.01,
                     Quat::from_rotation_x(FRAC_PI_2),
                     area.dimensions(),
-                    Color::linear_rgba(0.0, 1.0, 1.0, 1.0),
+                    gizmo_color,
                 );
             }
         }
@@ -90,30 +105,39 @@ fn adjust_brush_size(mut query: Query<&mut Brush>, keyboard: Res<ButtonInput<Key
 }
 
 fn handle_paint(
+    mut commands: Commands,
     query: Query<&mut Brush>,
     mut grid_query: Query<&mut Grid>,
     mouse: Res<ButtonInput<MouseButton>>,
     keyboard: Res<ButtonInput<KeyCode>>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let brush = query.single();
     let mut grid = grid_query.single_mut();
 
-    if mouse.pressed(MouseButton::Left)
+    if mouse.just_pressed(MouseButton::Left)
         && !keyboard.any_pressed([KeyCode::AltLeft, KeyCode::ShiftLeft, KeyCode::ControlLeft])
     {
         let area = GridArea::at(brush.ground_position, brush.dimensions.x, brush.dimensions.y);
 
-        for cell in area.iter() {
-            if let Some(occupancy) = grid.is_occupied(cell) {
-                if !occupancy {
-                    println!("marking {:?}", cell);
-                    grid.mark_occupied(cell);
-                } else {
-                    println!("already marked {:?}", cell);
-                }
-            } else {
-                println!("Cannot mark {:?}, out of bounds", cell);
-            }
+        let rheight = rand::thread_rng().gen_range(1.0..5.0);
+        let rgray = rand::thread_rng().gen_range(0.15..0.75);
+        let alley_width = 0.1;
+
+        if grid.is_valid_paint_area(area) {
+            grid.mark_area_occupied(area);
+
+            let size = area.dimensions();
+            commands.spawn((
+                PbrBundle {
+                    mesh: meshes.add(Cuboid::new(size.x - alley_width, rheight, size.y - alley_width)),
+                    material: materials.add(Color::linear_rgb(rgray, rgray, rgray)),
+                    transform: Transform::from_translation(area.center().with_y(rheight / 2.0)),
+                    ..default()
+                },
+                Building,
+            ));
         }
     }
 }

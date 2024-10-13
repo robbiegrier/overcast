@@ -5,26 +5,39 @@ const KEYBOARD_PAN_SPEED: f32 = 10.0;
 const KEYBOARD_ROTATE_SPEED: f32 = 1.0;
 const MOUSE_PAN_SPEED: f32 = 5.0;
 const MOUSE_ROTATE_SPEED: f32 = 0.25;
-const SCROLL_SPEED: f32 = 100.0;
+const SCROLL_SPEED: f32 = 200.0;
 
 #[derive(Component, Debug)]
 pub struct PlayerCameraController {
     mouse_panning_last_position: Vec2,
-    panning_in_progress: bool,
+    pub mouse_panning_in_progress: bool,
     mouse_rotating_last_position: Vec2,
-    rotating_in_progress: bool,
+    pub mouse_rotating_in_progress: bool,
     camera_center_ground_position: Vec3,
+    pub keyboard_panning_in_progress: bool,
+    pub keyboard_rotating_in_progress: bool,
 }
 
 impl PlayerCameraController {
     fn new() -> Self {
         Self {
             mouse_panning_last_position: Vec2::ZERO,
-            panning_in_progress: false,
+            mouse_panning_in_progress: false,
             mouse_rotating_last_position: Vec2::ZERO,
-            rotating_in_progress: false,
+            mouse_rotating_in_progress: false,
             camera_center_ground_position: Vec3::ZERO,
+            keyboard_panning_in_progress: false,
+            keyboard_rotating_in_progress: false,
         }
+    }
+}
+
+impl PlayerCameraController {
+    pub fn is_moving(&self) -> bool {
+        self.mouse_panning_in_progress
+            || self.mouse_rotating_in_progress
+            || self.keyboard_panning_in_progress
+            || self.keyboard_rotating_in_progress
     }
 }
 
@@ -53,11 +66,11 @@ fn spawn_camera(mut commands: Commands) {
 }
 
 fn keyboard_panning(
-    mut query: Query<&mut Transform, With<PlayerCameraController>>,
+    mut query: Query<(&mut Transform, &mut PlayerCameraController)>,
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
 ) {
-    if let Ok(mut transform) = query.get_single_mut() {
+    if let Ok((mut transform, mut controller)) = query.get_single_mut() {
         let mut delta = Vec3::ZERO;
 
         if keyboard.pressed(KeyCode::KeyW) {
@@ -74,6 +87,8 @@ fn keyboard_panning(
         }
 
         transform.translation += delta * KEYBOARD_PAN_SPEED * time.delta_seconds();
+
+        controller.keyboard_panning_in_progress = delta != Vec3::ZERO;
     }
 }
 
@@ -106,13 +121,13 @@ fn mouse_panning(
         {
             if let Some(cursor_position) = windows.single().cursor_position() {
                 controller.mouse_panning_last_position = cursor_position;
-                controller.panning_in_progress = true;
+                controller.mouse_panning_in_progress = true;
             }
         } else if mouse.just_released(MouseButton::Right) || (mouse.just_released(MouseButton::Left)) {
-            controller.panning_in_progress = false;
+            controller.mouse_panning_in_progress = false;
         }
 
-        if controller.panning_in_progress {
+        if controller.mouse_panning_in_progress {
             if let Some(cursor_position) = windows.single().cursor_position() {
                 let delta_mouse_drag = cursor_position - controller.mouse_panning_last_position;
                 let vertical = transform.forward().with_y(0.0).normalize() * delta_mouse_drag.y;
@@ -126,11 +141,11 @@ fn mouse_panning(
 }
 
 fn keyboard_rotating(
-    mut query: Query<(&mut Transform, &PlayerCameraController)>,
+    mut query: Query<(&mut Transform, &mut PlayerCameraController)>,
     keyboard: Res<ButtonInput<KeyCode>>,
     time: Res<Time>,
 ) {
-    if let Ok((mut transform, controller)) = query.get_single_mut() {
+    if let Ok((mut transform, mut controller)) = query.get_single_mut() {
         let mut delta_angle = 0.0f32;
 
         if keyboard.pressed(KeyCode::KeyQ) {
@@ -144,6 +159,9 @@ fn keyboard_rotating(
             let rotate_point = controller.camera_center_ground_position.with_y(transform.translation.y);
             let quat = Quat::from_rotation_y(delta_angle * time.delta_seconds());
             transform.rotate_around(rotate_point, quat);
+            controller.keyboard_rotating_in_progress = true;
+        } else {
+            controller.keyboard_rotating_in_progress = false;
         }
     }
 }
@@ -161,13 +179,13 @@ fn mouse_rotating(
         {
             if let Some(cursor_position) = windows.single().cursor_position() {
                 controller.mouse_rotating_last_position = cursor_position;
-                controller.rotating_in_progress = true;
+                controller.mouse_rotating_in_progress = true;
             }
         } else if mouse.just_released(MouseButton::Middle) || (mouse.just_released(MouseButton::Left)) {
-            controller.rotating_in_progress = false;
+            controller.mouse_rotating_in_progress = false;
         }
 
-        if controller.rotating_in_progress {
+        if controller.mouse_rotating_in_progress {
             if let Some(cursor_position) = windows.single().cursor_position() {
                 let delta_mouse_drag = cursor_position - controller.mouse_rotating_last_position;
 

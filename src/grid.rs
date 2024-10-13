@@ -39,10 +39,30 @@ impl Grid {
         }
     }
 
+    pub fn is_valid_paint_area(&self, area: GridArea) -> bool {
+        for cell in area.iter() {
+            if let Some(occupancy) = self.is_occupied(cell) {
+                if occupancy {
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
+
+        true
+    }
+
     pub fn mark_occupied(&mut self, cell: GridCell) {
         let offset = self.center + cell.position;
         if offset.x >= 0 && offset.x < GRID_DIAMETER && offset.y >= 0 && offset.y < GRID_DIAMETER {
             self.occupancy[offset.x as usize][offset.y as usize] = true;
+        }
+    }
+
+    pub fn mark_area_occupied(&mut self, area: GridArea) {
+        for cell in area.iter() {
+            self.mark_occupied(cell);
         }
     }
 }
@@ -177,7 +197,10 @@ fn spawn_ground(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut ma
 }
 
 fn spawn_grid_visualization(mut commands: Commands) {
-    commands.spawn(InfiniteGridBundle::default());
+    commands.spawn(InfiniteGridBundle {
+        visibility: Visibility::Hidden,
+        ..default()
+    });
 }
 
 fn toggle_grid_visualization(
@@ -194,20 +217,28 @@ fn toggle_grid_visualization(
     }
 }
 
-fn visualize_occupancy(grid_query: Query<&Grid>, ground_query: Query<&GlobalTransform, With<Ground>>, mut gizmos: Gizmos) {
-    let grid = grid_query.single();
-    let ground = ground_query.single();
-    for i in (-GRID_RADIUS)..(GRID_RADIUS) {
-        for j in (-GRID_RADIUS)..(GRID_RADIUS) {
-            let cell = GridCell::new(i, j);
-            if let Some(occupancy) = grid.is_occupied(cell) {
-                if occupancy {
-                    gizmos.rect(
-                        cell.center() + ground.up() * 0.01,
-                        Quat::from_rotation_x(FRAC_PI_2),
-                        Vec2::new(1.0, 1.0),
-                        Color::linear_rgba(0.75, 0.0, 0.0, 1.0),
-                    );
+fn visualize_occupancy(
+    grid_query: Query<&Grid>,
+    ground_query: Query<&GlobalTransform, With<Ground>>,
+    infinite_grid_query: Query<&Visibility, With<InfiniteGrid>>,
+    mut gizmos: Gizmos,
+) {
+    let visible = infinite_grid_query.single();
+    if visible == Visibility::Visible {
+        let grid = grid_query.single();
+        let ground = ground_query.single();
+        for i in (-GRID_RADIUS)..(GRID_RADIUS) {
+            for j in (-GRID_RADIUS)..(GRID_RADIUS) {
+                let cell = GridCell::new(i, j);
+                if let Some(occupancy) = grid.is_occupied(cell) {
+                    if occupancy {
+                        gizmos.rounded_rect(
+                            cell.center() + ground.up() * 0.01,
+                            Quat::from_rotation_x(FRAC_PI_2),
+                            Vec2::new(1.0, 1.0),
+                            Color::linear_rgba(0.75, 0.0, 0.0, 1.0),
+                        );
+                    }
                 }
             }
         }
