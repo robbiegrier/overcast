@@ -1,10 +1,10 @@
-use std::f32::consts::FRAC_PI_2;
-
-use bevy::prelude::*;
+use bevy::{prelude::*, utils::HashMap};
 use bevy_infinite_grid::{InfiniteGrid, InfiniteGridBundle};
+use std::{f32::consts::FRAC_PI_2, fmt};
 
 pub const GRID_RADIUS: i32 = 100;
 pub const GRID_DIAMETER: i32 = GRID_RADIUS * 2;
+pub const NUM_CELLS: i32 = GRID_DIAMETER * GRID_DIAMETER;
 
 pub struct GridPlugin;
 
@@ -18,30 +18,50 @@ impl Plugin for GridPlugin {
 
 #[derive(Component)]
 pub struct Grid {
-    occupancy: [[bool; GRID_DIAMETER as usize]; GRID_DIAMETER as usize],
+    entities: Vec<Option<Entity>>,
+    addresses: HashMap<Entity, Vec<GridCell>>,
     center: IVec2,
+}
+
+#[derive(Debug, Clone)]
+pub struct GridBoundsError;
+
+impl fmt::Display for GridBoundsError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "invalid index for the grid: index out of bounds")
+    }
 }
 
 impl Grid {
     fn new() -> Self {
         Self {
-            occupancy: [[false; GRID_DIAMETER as usize]; GRID_DIAMETER as usize],
+            entities: vec![None; NUM_CELLS as usize],
+            addresses: HashMap::new(),
             center: IVec2::new(GRID_RADIUS, GRID_RADIUS),
         }
     }
 
-    pub fn is_occupied(&self, cell: GridCell) -> Option<bool> {
+    fn coordinate(offset: IVec2) -> usize {
+        (offset.y * GRID_DIAMETER + offset.x) as usize
+    }
+
+    pub fn entity_at(&self, cell: GridCell) -> Result<Option<Entity>, GridBoundsError> {
         let offset = self.center + cell.position;
         if offset.x >= 0 && offset.x < GRID_DIAMETER && offset.y >= 0 && offset.y < GRID_DIAMETER {
-            Some(self.occupancy[offset.x as usize][offset.y as usize])
+            Ok(self.entities[Grid::coordinate(offset)])
         } else {
-            None
+            Err(GridBoundsError)
         }
+    }
+
+    pub fn is_occupied(&self, cell: GridCell) -> Result<bool, GridBoundsError> {
+        let entity_slot = self.entity_at(cell)?;
+        Ok(entity_slot.is_some())
     }
 
     pub fn is_valid_paint_area(&self, area: GridArea) -> bool {
         for cell in area.iter() {
-            if let Some(occupancy) = self.is_occupied(cell) {
+            if let Ok(occupancy) = self.is_occupied(cell) {
                 if occupancy {
                     return false;
                 }
@@ -53,16 +73,28 @@ impl Grid {
         true
     }
 
-    pub fn mark_occupied(&mut self, cell: GridCell) {
+    pub fn mark_occupied(&mut self, cell: GridCell, entity: Entity) {
         let offset = self.center + cell.position;
         if offset.x >= 0 && offset.x < GRID_DIAMETER && offset.y >= 0 && offset.y < GRID_DIAMETER {
-            self.occupancy[offset.x as usize][offset.y as usize] = true;
+            self.entities[Grid::coordinate(offset)] = Some(entity);
         }
     }
 
-    pub fn mark_area_occupied(&mut self, area: GridArea) {
+    pub fn mark_area_occupied(&mut self, area: GridArea, entity: Entity) {
         for cell in area.iter() {
-            self.mark_occupied(cell);
+            self.mark_occupied(cell, entity);
+            self.addresses.entry(entity).or_insert(Vec::new()).push(cell);
+        }
+    }
+
+    pub fn erase(&mut self, entity: Entity) {
+        if let Some(address_list) = self.addresses.get(&entity) {
+            for cell in address_list {
+                let offset = self.center + cell.position;
+                self.entities[Grid::coordinate(offset)] = None;
+            }
+
+            self.addresses.remove(&entity);
         }
     }
 }
@@ -230,7 +262,7 @@ fn visualize_occupancy(
         for i in (-GRID_RADIUS)..(GRID_RADIUS) {
             for j in (-GRID_RADIUS)..(GRID_RADIUS) {
                 let cell = GridCell::new(i, j);
-                if let Some(occupancy) = grid.is_occupied(cell) {
+                if let Ok(occupancy) = grid.is_occupied(cell) {
                     if occupancy {
                         gizmos.rounded_rect(
                             cell.center() + ground.up() * 0.01,

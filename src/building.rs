@@ -3,7 +3,7 @@ use bevy::prelude::*;
 pub struct BuildingPlugin;
 
 impl Plugin for BuildingPlugin {
-    fn build(&self, app: &mut App) {}
+    fn build(&self, _app: &mut App) {}
 }
 
 #[derive(Component, Debug)]

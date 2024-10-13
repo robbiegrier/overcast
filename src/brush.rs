@@ -11,14 +11,24 @@ pub struct BrushPlugin;
 
 impl Plugin for BrushPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_brush).add_systems(Update, (update_brush, adjust_brush_size, handle_paint));
+        app.add_systems(Startup, spawn_brush).add_systems(
+            Update,
+            (update_brush, adjust_brush_size, handle_brush_action, toggle_brush_mode),
+        );
     }
+}
+
+#[derive(Debug)]
+enum BrushMode {
+    Building,
+    Eraser,
 }
 
 #[derive(Component, Debug)]
 pub struct Brush {
     dimensions: IVec2,
     ground_position: Vec3,
+    mode: BrushMode,
 }
 
 impl Brush {
@@ -26,6 +36,7 @@ impl Brush {
         Self {
             dimensions: IVec2::ONE,
             ground_position: Vec3::ZERO,
+            mode: BrushMode::Building,
         }
     }
 }
@@ -55,9 +66,14 @@ fn update_brush(
 
                 let area = GridArea::at(brush.ground_position, brush.dimensions.x, brush.dimensions.y);
 
-                let mut gizmo_color = match grid_query.single().is_valid_paint_area(area) {
-                    true => Color::linear_rgba(0.0, 1.0, 1.0, 0.8),
-                    false => Color::linear_rgba(0.25, 0.0, 0.0, 0.8),
+                let mut gizmo_color = match brush.mode {
+                    BrushMode::Building => Color::linear_rgba(0.0, 1.0, 1.0, 0.8),
+                    BrushMode::Eraser => Color::linear_rgba(1.0, 1.0, 0.0, 0.8),
+                };
+
+                gizmo_color = match grid_query.single().is_valid_paint_area(area) {
+                    true => gizmo_color,
+                    false => Color::linear_rgba(1.0, 0.0, 0.0, 0.25),
                 };
 
                 if controller.is_moving() {
@@ -71,6 +87,17 @@ fn update_brush(
                     gizmo_color,
                 );
             }
+        }
+    }
+}
+
+fn toggle_brush_mode(mut query: Query<&mut Brush>, keyboard: Res<ButtonInput<KeyCode>>) {
+    let mut brush = query.single_mut();
+
+    if keyboard.just_pressed(KeyCode::Backspace) {
+        brush.mode = match brush.mode {
+            BrushMode::Building => BrushMode::Eraser,
+            BrushMode::Eraser => BrushMode::Building,
         }
     }
 }
@@ -104,14 +131,14 @@ fn adjust_brush_size(mut query: Query<&mut Brush>, keyboard: Res<ButtonInput<Key
     brush.dimensions = brush.dimensions.max(IVec2::new(1, 1));
 }
 
-fn handle_paint(
-    mut commands: Commands,
+fn handle_brush_action(
+    commands: Commands,
     query: Query<&mut Brush>,
     mut grid_query: Query<&mut Grid>,
     mouse: Res<ButtonInput<MouseButton>>,
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
+    meshes: ResMut<Assets<Mesh>>,
+    materials: ResMut<Assets<StandardMaterial>>,
 ) {
     let brush = query.single();
     let mut grid = grid_query.single_mut();
@@ -119,17 +146,30 @@ fn handle_paint(
     if mouse.just_pressed(MouseButton::Left)
         && !keyboard.any_pressed([KeyCode::AltLeft, KeyCode::ShiftLeft, KeyCode::ControlLeft])
     {
-        let area = GridArea::at(brush.ground_position, brush.dimensions.x, brush.dimensions.y);
+        match brush.mode {
+            BrushMode::Building => place_building(commands, brush, &mut grid, meshes, materials),
+            BrushMode::Eraser => erase(commands, brush, &mut grid),
+        }
+    }
+}
 
-        let rheight = rand::thread_rng().gen_range(1.0..5.0);
-        let rgray = rand::thread_rng().gen_range(0.15..0.75);
-        let alley_width = 0.1;
+fn place_building(
+    mut commands: Commands,
+    brush: &Brush,
+    grid: &mut Grid,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let area = GridArea::at(brush.ground_position, brush.dimensions.x, brush.dimensions.y);
 
-        if grid.is_valid_paint_area(area) {
-            grid.mark_area_occupied(area);
+    let rheight = rand::thread_rng().gen_range(1.0..5.0);
+    let rgray = rand::thread_rng().gen_range(0.15..0.75);
+    let alley_width = 0.1;
 
-            let size = area.dimensions();
-            commands.spawn((
+    if grid.is_valid_paint_area(area) {
+        let size = area.dimensions();
+        let entity = commands
+            .spawn((
                 PbrBundle {
                     mesh: meshes.add(Cuboid::new(size.x - alley_width, rheight, size.y - alley_width)),
                     material: materials.add(Color::linear_rgb(rgray, rgray, rgray)),
@@ -137,7 +177,23 @@ fn handle_paint(
                     ..default()
                 },
                 Building,
-            ));
+            ))
+            .id();
+
+        grid.mark_area_occupied(area, entity);
+    }
+}
+
+fn erase(mut commands: Commands, brush: &Brush, grid: &mut Grid) {
+    let area = GridArea::at(brush.ground_position, brush.dimensions.x, brush.dimensions.y);
+
+    for cell in area.iter() {
+        if let Ok(entity_slot) = grid.entity_at(cell) {
+            if let Some(entity) = entity_slot {
+                println!("want to erase {:?}", entity);
+                grid.erase(entity);
+                commands.entity(entity).despawn_recursive();
+            }
         }
     }
 }
