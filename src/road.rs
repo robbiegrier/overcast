@@ -1,4 +1,4 @@
 use bevy::prelude::*;
 
 #[derive(Component, Debug)]
-pub struct Building;
+pub struct Road;

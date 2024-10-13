@@ -2,6 +2,7 @@ use crate::{
     building::Building,
     camera::PlayerCameraController,
     grid::{Grid, GridArea, Ground},
+    road::Road,
 };
 use bevy::prelude::*;
 use rand::Rng;
@@ -18,9 +19,10 @@ impl Plugin for BrushPlugin {
     }
 }
 
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 enum BrushMode {
     Building,
+    Road,
     Eraser,
 }
 
@@ -29,6 +31,7 @@ pub struct Brush {
     dimensions: IVec2,
     ground_position: Vec3,
     mode: BrushMode,
+    previous_mode: BrushMode,
 }
 
 impl Brush {
@@ -37,6 +40,7 @@ impl Brush {
             dimensions: IVec2::ONE,
             ground_position: Vec3::ZERO,
             mode: BrushMode::Building,
+            previous_mode: BrushMode::Building,
         }
     }
 }
@@ -68,6 +72,7 @@ fn update_brush(
 
                 let mut gizmo_color = match brush.mode {
                     BrushMode::Building => Color::linear_rgba(0.0, 1.0, 1.0, 0.8),
+                    BrushMode::Road => Color::linear_rgba(0.5, 0.0, 0.5, 0.8),
                     BrushMode::Eraser => Color::linear_rgba(1.0, 1.0, 0.0, 0.8),
                 };
 
@@ -94,17 +99,28 @@ fn update_brush(
 fn toggle_brush_mode(mut query: Query<&mut Brush>, keyboard: Res<ButtonInput<KeyCode>>) {
     let mut brush = query.single_mut();
 
+    if keyboard.just_pressed(KeyCode::Digit1) {
+        brush.mode = BrushMode::Building;
+    }
+
+    if keyboard.just_pressed(KeyCode::Digit2) {
+        brush.mode = BrushMode::Road;
+    }
+
     if keyboard.just_pressed(KeyCode::Backspace) {
         brush.mode = match brush.mode {
-            BrushMode::Building => BrushMode::Eraser,
             BrushMode::Eraser => BrushMode::Building,
+            _ => BrushMode::Eraser,
         }
     }
 
     if keyboard.just_pressed(KeyCode::ShiftLeft) || keyboard.just_released(KeyCode::ShiftLeft) {
         brush.mode = match brush.mode {
-            BrushMode::Building => BrushMode::Eraser,
-            BrushMode::Eraser => BrushMode::Building,
+            BrushMode::Eraser => brush.previous_mode,
+            _ => {
+                brush.previous_mode = brush.mode;
+                BrushMode::Eraser
+            }
         }
     }
 }
@@ -153,6 +169,7 @@ fn handle_brush_action(
     if mouse.just_pressed(MouseButton::Left) && !keyboard.any_pressed([KeyCode::AltLeft, KeyCode::ControlLeft]) {
         match brush.mode {
             BrushMode::Building => place_building(commands, brush, &mut grid, meshes, materials),
+            BrushMode::Road => place_road(commands, brush, &mut grid, meshes, materials),
             BrushMode::Eraser => erase(commands, brush, &mut grid),
         }
     }
@@ -182,6 +199,36 @@ fn place_building(
                     ..default()
                 },
                 Building,
+            ))
+            .id();
+
+        grid.mark_area_occupied(area, entity);
+    }
+}
+
+fn place_road(
+    mut commands: Commands,
+    brush: &Brush,
+    grid: &mut Grid,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+) {
+    let area = GridArea::at(brush.ground_position, brush.dimensions.x, brush.dimensions.y);
+
+    let road_height = 0.1;
+    let gray = 0.01;
+
+    if grid.is_valid_paint_area(area) {
+        let size = area.dimensions();
+        let entity = commands
+            .spawn((
+                PbrBundle {
+                    mesh: meshes.add(Cuboid::new(size.x, road_height, size.y)),
+                    material: materials.add(Color::linear_rgb(gray, gray, gray)),
+                    transform: Transform::from_translation(area.center().with_y(road_height / 2.0)),
+                    ..default()
+                },
+                Road,
             ))
             .id();
 

@@ -2,6 +2,7 @@ mod brush;
 mod building;
 mod camera;
 mod grid;
+mod road;
 mod weather;
 
 use bevy::prelude::*;
@@ -12,7 +13,6 @@ fn main() {
         .add_plugins(camera::CameraPlugin)
         .add_plugins(grid::GridPlugin)
         .add_plugins(brush::BrushPlugin)
-        .add_plugins(building::BuildingPlugin)
         .add_plugins(weather::WeatherPlugin)
         .run();
 }
