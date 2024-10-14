@@ -1,1 +1,2 @@
-# rust_final_project
+# Simple Traffic Sim
+

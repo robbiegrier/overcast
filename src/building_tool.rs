@@ -1,11 +1,11 @@
 use crate::{
     camera::PlayerCameraController,
-    grid::{Grid, GridArea, Ground},
+    grid::{Grid, Ground},
+    grid_area::GridArea,
     tool::ToolState,
 };
 use bevy::prelude::*;
 use rand::Rng;
-use std::f32::consts::FRAC_PI_2;
 
 pub struct BuildingToolPlugin;
 

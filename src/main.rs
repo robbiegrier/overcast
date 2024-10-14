@@ -1,6 +1,8 @@
 mod building_tool;
 mod camera;
 mod grid;
+mod grid_area;
+mod grid_cell;
 mod road_tool;
 mod tool;
 mod weather;
