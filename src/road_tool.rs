@@ -287,6 +287,16 @@ fn handle_end_drag(
             if let Ok(adjacent_road_segment) = segment_query.get(adjacent_entity) {
                 if adjacent_road_segment.orientation != tool.orientation {
                     println!("at end, create intersection");
+
+                    grid.erase(adjacent_entity);
+
+                    if adjacent_road_segment.orientation == RoadOrientation::Z {
+                        split_road_z(adjacent_road_segment, &mut commands, tool, grid, &mut meshes, &mut materials);
+                    } else {
+                        split_road_x(adjacent_road_segment, &mut commands, tool, grid, &mut meshes, &mut materials);
+                    }
+
+                    commands.entity(adjacent_entity).despawn();
                 } else if adjacent_road_segment.width == tool.width {
                     println!("at end, create extension");
                 }
@@ -374,37 +384,41 @@ fn split_road_z(
     mut meshes: &mut ResMut<Assets<Mesh>>,
     mut materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
-    spawn_road_segment(
-        adjacent_road_segment.orientation,
-        adjacent_road_segment.width,
-        GridArea {
-            min: adjacent_road_segment.area.min,
-            max: GridCell::new(
-                adjacent_road_segment.area.max.position.x,
-                tool.drag_area.adjacent_bottom().min.position.y,
-            ),
-        },
-        grid,
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-    );
+    if adjacent_road_segment.area.min.position.y < tool.drag_area.min.position.y {
+        spawn_road_segment(
+            adjacent_road_segment.orientation,
+            adjacent_road_segment.width,
+            GridArea {
+                min: adjacent_road_segment.area.min,
+                max: GridCell::new(
+                    adjacent_road_segment.area.max.position.x,
+                    tool.drag_area.adjacent_bottom().min.position.y,
+                ),
+            },
+            grid,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+        );
+    }
 
-    spawn_road_segment(
-        adjacent_road_segment.orientation,
-        adjacent_road_segment.width,
-        GridArea {
-            min: GridCell::new(
-                adjacent_road_segment.area.min.position.x,
-                tool.drag_area.adjacent_top().max.position.y,
-            ),
-            max: adjacent_road_segment.area.max,
-        },
-        grid,
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-    );
+    if adjacent_road_segment.area.max.position.y > tool.drag_area.max.position.y {
+        spawn_road_segment(
+            adjacent_road_segment.orientation,
+            adjacent_road_segment.width,
+            GridArea {
+                min: GridCell::new(
+                    adjacent_road_segment.area.min.position.x,
+                    tool.drag_area.adjacent_top().max.position.y,
+                ),
+                max: adjacent_road_segment.area.max,
+            },
+            grid,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+        );
+    }
 
     spawn_intersection(
         GridArea {
@@ -426,37 +440,41 @@ fn split_road_x(
     mut meshes: &mut ResMut<Assets<Mesh>>,
     mut materials: &mut ResMut<Assets<StandardMaterial>>,
 ) {
-    spawn_road_segment(
-        adjacent_road_segment.orientation,
-        adjacent_road_segment.width,
-        GridArea {
-            min: adjacent_road_segment.area.min,
-            max: GridCell::new(
-                tool.drag_area.adjacent_left().min.position.x,
-                adjacent_road_segment.area.max.position.y,
-            ),
-        },
-        grid,
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-    );
+    if adjacent_road_segment.area.min.position.x < tool.drag_area.min.position.x {
+        spawn_road_segment(
+            adjacent_road_segment.orientation,
+            adjacent_road_segment.width,
+            GridArea {
+                min: adjacent_road_segment.area.min,
+                max: GridCell::new(
+                    tool.drag_area.adjacent_left().min.position.x,
+                    adjacent_road_segment.area.max.position.y,
+                ),
+            },
+            grid,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+        );
+    }
 
-    spawn_road_segment(
-        adjacent_road_segment.orientation,
-        adjacent_road_segment.width,
-        GridArea {
-            min: GridCell::new(
-                tool.drag_area.adjacent_right().max.position.x,
-                adjacent_road_segment.area.min.position.y,
-            ),
-            max: adjacent_road_segment.area.max,
-        },
-        grid,
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-    );
+    if adjacent_road_segment.area.max.position.x > tool.drag_area.max.position.x {
+        spawn_road_segment(
+            adjacent_road_segment.orientation,
+            adjacent_road_segment.width,
+            GridArea {
+                min: GridCell::new(
+                    tool.drag_area.adjacent_right().max.position.x,
+                    adjacent_road_segment.area.min.position.y,
+                ),
+                max: adjacent_road_segment.area.max,
+            },
+            grid,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+        );
+    }
 
     spawn_intersection(
         GridArea {
