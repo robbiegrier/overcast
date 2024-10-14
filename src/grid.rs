@@ -95,8 +95,8 @@ impl Grid {
 
 #[derive(Copy, Clone, Debug)]
 pub struct GridArea {
-    min: GridCell,
-    max: GridCell,
+    pub min: GridCell,
+    pub max: GridCell,
 }
 
 impl GridArea {
@@ -145,6 +145,23 @@ impl GridArea {
         }
     }
 
+    pub fn union(&self, other: GridArea) -> GridArea {
+        GridArea {
+            min: GridCell {
+                position: IVec2 {
+                    x: self.min.position.x.min(other.min.position.x),
+                    y: self.min.position.y.min(other.min.position.y),
+                },
+            },
+            max: GridCell {
+                position: IVec2 {
+                    x: self.max.position.x.max(other.max.position.x),
+                    y: self.max.position.y.max(other.max.position.y),
+                },
+            },
+        }
+    }
+
     pub fn iter(&self) -> GridAreaIterator {
         GridAreaIterator {
             area: self,
@@ -176,7 +193,7 @@ impl<'a> Iterator for GridAreaIterator<'a> {
 
 #[derive(Copy, Clone, Debug)]
 pub struct GridCell {
-    position: IVec2,
+    pub position: IVec2,
 }
 
 impl GridCell {
@@ -224,7 +241,7 @@ fn spawn_ground(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut ma
 
 fn spawn_grid_visualization(mut commands: Commands) {
     commands.spawn(InfiniteGridBundle {
-        visibility: Visibility::Hidden,
+        visibility: Visibility::Visible,
         ..default()
     });
 }
