@@ -1,3 +1,4 @@
+use crate::road_tool::RoadOrientation;
 use bevy::{prelude::*, utils::HashMap};
 use bevy_infinite_grid::{InfiniteGrid, InfiniteGridBundle};
 use std::{f32::consts::FRAC_PI_2, fmt};
@@ -71,6 +72,28 @@ impl Grid {
         }
 
         true
+    }
+
+    pub fn single_entity_in_area(&self, area: GridArea) -> Option<Entity> {
+        let mut output: Option<Entity> = None;
+        for cell in area.iter() {
+            if let Ok(entity_slot) = self.entity_at(cell) {
+                if let Some(entity) = entity_slot {
+                    if let Some(unique) = output {
+                        if unique != entity {
+                            return None;
+                        }
+                    } else {
+                        output = Some(entity);
+                    }
+                } else {
+                    return None;
+                }
+            } else {
+                return None;
+            }
+        }
+        output
     }
 
     pub fn mark_area_occupied(&mut self, area: GridArea, entity: Entity) {
@@ -159,6 +182,38 @@ impl GridArea {
                     y: self.max.position.y.max(other.max.position.y),
                 },
             },
+        }
+    }
+
+    pub fn adjacent_bottom(&self) -> GridArea {
+        let new_y = self.min.position.y - 1;
+        GridArea {
+            min: GridCell::new(self.min.position.x, new_y),
+            max: GridCell::new(self.max.position.x, new_y),
+        }
+    }
+
+    pub fn adjacent_top(&self) -> GridArea {
+        let new_y = self.max.position.y + 1;
+        GridArea {
+            min: GridCell::new(self.min.position.x, new_y),
+            max: GridCell::new(self.max.position.x, new_y),
+        }
+    }
+
+    pub fn adjacent_left(&self) -> GridArea {
+        let new_x = self.min.position.x - 1;
+        GridArea {
+            min: GridCell::new(new_x, self.min.position.y),
+            max: GridCell::new(new_x, self.max.position.y),
+        }
+    }
+
+    pub fn adjacent_right(&self) -> GridArea {
+        let new_x = self.max.position.x + 1;
+        GridArea {
+            min: GridCell::new(new_x, self.min.position.y),
+            max: GridCell::new(new_x, self.max.position.y),
         }
     }
 
