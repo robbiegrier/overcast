@@ -6,23 +6,12 @@ use bevy::prelude::*;
 #[derive(Component, Debug)]
 pub struct RoadSegment {
     pub orientation: Axis,
-    pub width: i32,
     pub area: GridArea,
 }
 
 impl RoadSegment {
     pub fn new(area: GridArea, orientation: Axis) -> Self {
-        let width = if orientation == Axis::Z {
-            area.cell_dimensions().x
-        } else {
-            area.cell_dimensions().y
-        };
-
-        Self {
-            orientation,
-            width,
-            area,
-        }
+        Self { orientation, area }
     }
 
     pub fn drive_length(&self) -> i32 {

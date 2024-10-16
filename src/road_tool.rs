@@ -22,6 +22,7 @@ impl Plugin for RoadToolPlugin {
             .add_event::<IntersectionCreateEvent>()
             .add_event::<RoadSplitEvent>()
             .add_event::<RoadExtendEvent>()
+            .add_event::<RoadBridgeEvent>()
             .add_systems(
                 Update,
                 (
@@ -31,7 +32,7 @@ impl Plugin for RoadToolPlugin {
                         .before(split_roads)
                         .before(spawn_roads)
                         .before(spawn_intersections),
-                    (split_roads, extend_roads).before(spawn_roads).before(spawn_intersections),
+                    (split_roads, extend_roads, bridge_roads).before(spawn_roads).before(spawn_intersections),
                     spawn_roads,
                     spawn_intersections,
                 )
@@ -239,6 +240,7 @@ fn handle_action(
     splitter: EventWriter<RoadSplitEvent>,
     extender: EventWriter<RoadExtendEvent>,
     intersector: EventWriter<IntersectionCreateEvent>,
+    bridge: EventWriter<RoadBridgeEvent>,
 ) {
     let mut tool = query.single_mut();
     let mut grid = grid_query.single_mut();
@@ -250,7 +252,16 @@ fn handle_action(
                     tool.dragging = true;
                     tool.drag_start_ground_position = tool.ground_position;
                 } else {
-                    handle_end_drag(&mut tool, &mut grid, segment_query, creator, splitter, extender, intersector);
+                    handle_end_drag(
+                        &mut tool,
+                        &mut grid,
+                        segment_query,
+                        creator,
+                        splitter,
+                        extender,
+                        intersector,
+                        bridge,
+                    );
                 }
             }
         }
@@ -269,9 +280,12 @@ fn handle_end_drag(
     mut splitter: EventWriter<RoadSplitEvent>,
     mut extender: EventWriter<RoadExtendEvent>,
     mut intersector: EventWriter<IntersectionCreateEvent>,
+    mut bridge: EventWriter<RoadBridgeEvent>,
 ) {
     if grid.is_valid_paint_area(tool.drag_area) {
-        let mut add_road = true;
+        let mut extend_start = false;
+        let mut extend_end = false;
+        let mut extend_entities = Vec::<Entity>::new();
 
         if let Some(adjacent_entity) = grid.single_entity_in_area(tool.drag_start_attach_area()) {
             if let Ok(adj) = segment_query.get(adjacent_entity) {
@@ -282,8 +296,9 @@ fn handle_end_drag(
                     intersector.send(IntersectionCreateEvent::new(intersection_area));
                 } else if adj.drive_width() == tool.width {
                     // println!("at start, create extension");
-                    extender.send(RoadExtendEvent::new(adjacent_entity, tool.drag_area));
-                    add_road = false;
+                    // extender.send(RoadExtendEvent::new(adjacent_entity, tool.drag_area));
+                    extend_start = true;
+                    extend_entities.push(adjacent_entity);
                 }
             }
         }
@@ -297,14 +312,21 @@ fn handle_end_drag(
                     intersector.send(IntersectionCreateEvent::new(intersection_area));
                 } else if adj.drive_width() == tool.width {
                     // println!("at end, create extension");
-                    extender.send(RoadExtendEvent::new(adjacent_entity, tool.drag_area));
-                    add_road = false;
+                    // extender.send(RoadExtendEvent::new(adjacent_entity, tool.drag_area));
+                    extend_end = true;
+                    extend_entities.push(adjacent_entity);
                 }
             }
         }
 
-        if add_road {
+        if !extend_start && !extend_end {
             creator.send(RoadCreateEvent::new(tool.drag_area, tool.orientation));
+        } else if extend_start && extend_end {
+            bridge.send(RoadBridgeEvent::new(extend_entities[0], extend_entities[1]));
+        } else {
+            for adjacent_entity in extend_entities {
+                extender.send(RoadExtendEvent::new(adjacent_entity, tool.drag_area));
+            }
         }
     }
 
@@ -425,6 +447,27 @@ fn extend_roads(
             roads.send(RoadCreateEvent::new(extended_area, original_segment.orientation));
             commands.entity(entity).despawn();
             rem_event.send(GraphEdgeRemoveEvent(entity));
+        }
+    }
+}
+
+fn bridge_roads(
+    mut bridge_event: EventReader<RoadBridgeEvent>,
+    mut rem_event: EventWriter<GraphEdgeRemoveEvent>,
+    segment_query: Query<&mut RoadSegment>,
+    mut roads: EventWriter<RoadCreateEvent>,
+    mut commands: Commands,
+) {
+    for &RoadBridgeEvent { first, second } in bridge_event.read() {
+        if let Ok(first_segment) = segment_query.get(first) {
+            if let Ok(second_segment) = segment_query.get(second) {
+                let extended_area = first_segment.area.union(second_segment.area);
+                roads.send(RoadCreateEvent::new(extended_area, first_segment.orientation));
+                commands.entity(first).despawn();
+                commands.entity(second).despawn();
+                rem_event.send(GraphEdgeRemoveEvent(first));
+                rem_event.send(GraphEdgeRemoveEvent(second));
+            }
         }
     }
 }

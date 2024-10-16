@@ -47,3 +47,15 @@ impl RoadExtendEvent {
         Self { entity, extension }
     }
 }
+
+#[derive(Event, Debug)]
+pub struct RoadBridgeEvent {
+    pub first: Entity,
+    pub second: Entity,
+}
+
+impl RoadBridgeEvent {
+    pub fn new(first: Entity, second: Entity) -> Self {
+        Self { first, second }
+    }
+}
