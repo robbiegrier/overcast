@@ -89,7 +89,7 @@ fn remove_from_graph(
 
     // for each deleted segment, remove it and remove from attached nodes
     for &GraphEdgeRemoveEvent(entity) in edge_remove_event.read() {
-        println!("the graph detected removed edge: {:?}", entity);
+        // println!("the graph detected removed edge: {:?}", entity);
         let edge_entity = graph.edges[&entity];
         if let Ok(edge) = edge_query.get(edge_entity) {
             for endpoint_slot in &edge.endpoints {
@@ -106,7 +106,7 @@ fn remove_from_graph(
 
     // for each deleted intersection, remove it and remove from attached edges
     for &GraphNodeRemoveEvent(entity) in node_remove_event.read() {
-        println!("the graph detected removed node: {:?}", entity);
+        // println!("the graph detected removed node: {:?}", entity);
         let node_entity = graph.nodes[&entity];
         if let Ok(node) = node_query.get(node_entity) {
             for edge_entity in &node.edges {
@@ -139,7 +139,7 @@ fn add_to_graph(
     // for each spawned segment, add an edge
     for &GraphEdgeAddEvent(entity) in edge_add_event.read() {
         if let Ok(segment) = segment_query.get(entity) {
-            println!("the graph detected spawned edge: {:?}", entity);
+            // println!("the graph detected spawned edge: {:?}", entity);
             let spawn = commands.spawn(GraphEdge::new(segment.drive_length(), segment.area.center())).id();
             graph.edges.insert(entity, spawn);
         }
@@ -148,7 +148,7 @@ fn add_to_graph(
     // for each spawned intersection, add a node
     for &GraphNodeAddEvent(entity) in node_add_event.read() {
         if let Ok(intersection) = intersection_query.get(entity) {
-            println!("the graph detected spawned node: {:?}", entity);
+            // println!("the graph detected spawned node: {:?}", entity);
             let spawn = commands.spawn(GraphNode::new(intersection.area.center())).id();
             graph.nodes.insert(entity, spawn);
         }
@@ -172,49 +172,20 @@ fn repair_graph(
         let edge_entity = graph.edges[&entity];
         if let Ok(mut edge) = edge_query.get_mut(edge_entity) {
             if let Ok(segment) = segment_query.get(entity) {
-                if let Some(adjacent_entity) = grid.single_entity_in_area(segment.area.adjacent_top()) {
-                    if let Ok(_intersection) = intersection_query.get(adjacent_entity) {
-                        if let Some(node_entity) = graph.nodes.get(&adjacent_entity) {
-                            if let Ok(mut node) = node_query.get_mut(*node_entity) {
-                                node.edges.push(edge_entity);
-                                edge.endpoints[1] = Some(*node_entity);
-                                println!("add edge to node (top)");
+                let mut endpoint_polarity = 1;
+                for adjacent_area in segment.area.adjacent_areas() {
+                    if let Some(adjacent_entity) = grid.single_entity_in_area(adjacent_area) {
+                        if let Ok(_intersection) = intersection_query.get(adjacent_entity) {
+                            if let Some(node_entity) = graph.nodes.get(&adjacent_entity) {
+                                if let Ok(mut node) = node_query.get_mut(*node_entity) {
+                                    node.edges.push(edge_entity);
+                                    edge.endpoints[endpoint_polarity] = Some(*node_entity);
+                                    // println!("add edge to node");
+                                }
                             }
                         }
                     }
-                }
-                if let Some(adjacent_entity) = grid.single_entity_in_area(segment.area.adjacent_bottom()) {
-                    if let Ok(_intersection) = intersection_query.get(adjacent_entity) {
-                        if let Some(node_entity) = graph.nodes.get(&adjacent_entity) {
-                            if let Ok(mut node) = node_query.get_mut(*node_entity) {
-                                node.edges.push(edge_entity);
-                                edge.endpoints[0] = Some(*node_entity);
-                                println!("add edge to node (bottom)");
-                            }
-                        }
-                    }
-                }
-                if let Some(adjacent_entity) = grid.single_entity_in_area(segment.area.adjacent_left()) {
-                    if let Ok(_intersection) = intersection_query.get(adjacent_entity) {
-                        if let Some(node_entity) = graph.nodes.get(&adjacent_entity) {
-                            if let Ok(mut node) = node_query.get_mut(*node_entity) {
-                                node.edges.push(edge_entity);
-                                edge.endpoints[1] = Some(*node_entity);
-                                println!("add edge to node (left)");
-                            }
-                        }
-                    }
-                }
-                if let Some(adjacent_entity) = grid.single_entity_in_area(segment.area.adjacent_right()) {
-                    if let Ok(_intersection) = intersection_query.get(adjacent_entity) {
-                        if let Some(node_entity) = graph.nodes.get(&adjacent_entity) {
-                            if let Ok(mut node) = node_query.get_mut(*node_entity) {
-                                node.edges.push(edge_entity);
-                                edge.endpoints[0] = Some(*node_entity);
-                                println!("add edge to node (right)");
-                            }
-                        }
-                    }
+                    endpoint_polarity = (endpoint_polarity + 1) % 2;
                 }
             }
         }
@@ -222,47 +193,21 @@ fn repair_graph(
 
     for &GraphNodeAddEvent(entity) in node_add_event.read() {
         let node_entity = graph.nodes[&entity];
-        if let Ok(node) = node_query.get(node_entity) {
+        if let Ok(_node) = node_query.get(node_entity) {
             if let Ok(intersection) = intersection_query.get(entity) {
-                if let Some(adjacent_entity) = grid.single_entity_in_area(intersection.area.adjacent_bottom()) {
-                    if let Ok(_segment) = segment_query.get(adjacent_entity) {
-                        if let Some(edge_entity) = graph.edges.get(&adjacent_entity) {
-                            if let Ok(mut edge) = edge_query.get_mut(*edge_entity) {
-                                edge.endpoints[1] = Some(node_entity);
-                                println!("set node {:?} as endpoint[1] of {:?}", node, edge);
+                let mut endpoint_polarity = 0;
+                for adjacent_area in intersection.area.adjacent_areas() {
+                    if let Some(adjacent_entity) = grid.single_entity_in_area(adjacent_area) {
+                        if let Ok(_segment) = segment_query.get(adjacent_entity) {
+                            if let Some(edge_entity) = graph.edges.get(&adjacent_entity) {
+                                if let Ok(mut edge) = edge_query.get_mut(*edge_entity) {
+                                    edge.endpoints[endpoint_polarity] = Some(node_entity);
+                                    // println!("set node {:?} as endpoint of {:?}", node, edge);
+                                }
                             }
                         }
                     }
-                }
-                if let Some(adjacent_entity) = grid.single_entity_in_area(intersection.area.adjacent_top()) {
-                    if let Ok(_segment) = segment_query.get(adjacent_entity) {
-                        if let Some(edge_entity) = graph.edges.get(&adjacent_entity) {
-                            if let Ok(mut edge) = edge_query.get_mut(*edge_entity) {
-                                edge.endpoints[0] = Some(node_entity);
-                                println!("set node {:?} as endpoint[0] of {:?}", node, edge);
-                            }
-                        }
-                    }
-                }
-                if let Some(adjacent_entity) = grid.single_entity_in_area(intersection.area.adjacent_left()) {
-                    if let Ok(_segment) = segment_query.get(adjacent_entity) {
-                        if let Some(edge_entity) = graph.edges.get(&adjacent_entity) {
-                            if let Ok(mut edge) = edge_query.get_mut(*edge_entity) {
-                                edge.endpoints[0] = Some(node_entity);
-                                println!("set node {:?} as endpoint[0] of {:?}", node, edge);
-                            }
-                        }
-                    }
-                }
-                if let Some(adjacent_entity) = grid.single_entity_in_area(intersection.area.adjacent_right()) {
-                    if let Ok(_segment) = segment_query.get(adjacent_entity) {
-                        if let Some(edge_entity) = graph.edges.get(&adjacent_entity) {
-                            if let Ok(mut edge) = edge_query.get_mut(*edge_entity) {
-                                edge.endpoints[1] = Some(node_entity);
-                                println!("set node {:?} as endpoint[1] of {:?}", node, edge);
-                            }
-                        }
-                    }
+                    endpoint_polarity = (endpoint_polarity + 1) % 2;
                 }
             }
         }
@@ -278,21 +223,23 @@ const EDGE_COLOR: Color = Color::linear_rgb(0.0, 0.0, 1.0);
 fn visualize_graph(
     ground_query: Query<&GlobalTransform, With<Ground>>,
     mut gizmos: Gizmos,
-    edge_query: Query<&GraphEdge>,
+    edge_query: Query<(Entity, &GraphEdge)>,
     node_query: Query<&GraphNode>,
 ) {
     let ground = ground_query.single();
 
-    for edge in &edge_query {
+    for (entity, edge) in &edge_query {
         let gizmo_pos = edge.location + ground.up() * GIZMO_HEIGHT;
         gizmos.circle(gizmo_pos, ground.up(), EDGE_GIZMO_SIZE, EDGE_COLOR);
         for endpoint_slot in edge.endpoints {
             if let Some(endpoint) = endpoint_slot {
                 if let Ok(node) = node_query.get(endpoint) {
-                    let dir = (edge.location - node.location).normalize();
-                    let start = (node.location + ground.up() * GIZMO_HEIGHT) + (dir * NODE_GIZMO_SIZE);
-                    let end = gizmo_pos + (-dir * EDGE_GIZMO_SIZE);
-                    gizmos.line_gradient(start, end, NODE_COLOR, EDGE_COLOR);
+                    if node.edges.contains(&entity) {
+                        let dir = (edge.location - node.location).normalize();
+                        let start = (node.location + ground.up() * GIZMO_HEIGHT) + (dir * NODE_GIZMO_SIZE);
+                        let end = gizmo_pos + (-dir * EDGE_GIZMO_SIZE);
+                        gizmos.line_gradient(start, end, NODE_COLOR, EDGE_COLOR);
+                    }
                 }
             }
         }
@@ -301,5 +248,18 @@ fn visualize_graph(
     for node in &node_query {
         let pos = node.location + ground.up() * GIZMO_HEIGHT;
         gizmos.circle(pos, ground.up(), NODE_GIZMO_SIZE, NODE_COLOR);
+
+        for edge_entity in &node.edges {
+            if let Ok((_, edge)) = edge_query.get(*edge_entity) {
+                let dir = (edge.location - node.location).normalize();
+                let start = (edge.location + ground.up() * GIZMO_HEIGHT) + (-dir * EDGE_GIZMO_SIZE);
+                let end = pos + (dir * NODE_GIZMO_SIZE);
+                gizmos.line(
+                    start + Vec3::new(0.0, 1.0, 0.0),
+                    end + Vec3::new(0.0, 1.0, 0.0),
+                    Color::linear_rgb(1.0, 1.0, 0.0),
+                );
+            }
+        }
     }
 }

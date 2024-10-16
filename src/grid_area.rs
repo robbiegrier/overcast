@@ -119,6 +119,10 @@ impl GridArea {
             current: GridCell::new(self.min.position.x - 1, self.min.position.y),
         }
     }
+
+    pub fn adjacent_areas(&self) -> GridAdjacentAreasIterator {
+        GridAdjacentAreasIterator { area: self, index: 0 }
+    }
 }
 
 pub struct GridAreaIterator<'a> {
@@ -139,5 +143,26 @@ impl<'a> Iterator for GridAreaIterator<'a> {
         } else {
             None
         }
+    }
+}
+
+pub struct GridAdjacentAreasIterator<'a> {
+    area: &'a GridArea,
+    index: usize,
+}
+
+impl<'a> Iterator for GridAdjacentAreasIterator<'a> {
+    type Item = GridArea;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = match self.index {
+            0 => Some(self.area.adjacent_top()),
+            1 => Some(self.area.adjacent_bottom()),
+            2 => Some(self.area.adjacent_left()),
+            3 => Some(self.area.adjacent_right()),
+            _ => None,
+        };
+        self.index += 1;
+        next
     }
 }

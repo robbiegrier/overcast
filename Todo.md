@@ -1,16 +1,16 @@
 
 ## Todo
 
-### simplify tool spawning methods
+<!-- ### simplify tool spawning methods
 - Use another pattern for calling functions instead of passing all of the queries and refs every time
-- Maybe use an event writer or create a new system that responds to all spawn events
+- Maybe use an event writer or create a new system that responds to all spawn events -->
 
 ### road extensions
 - extend road segment (to and from) when placing new road.
 - replace exisiting segment with longer segment
 
 ### roadmap graph structure
-- model connections between intersections and road segments
+<!-- - model connections between intersections and road segments -->
 - weighted edges based on segment length
 - update on road segment edits
 
