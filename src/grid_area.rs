@@ -57,7 +57,7 @@ impl GridArea {
         }
     }
 
-    pub fn cell_dimenions(&self) -> IVec2 {
+    pub fn cell_dimensions(&self) -> IVec2 {
         IVec2 {
             x: self.max.position.x - self.min.position.x,
             y: self.max.position.y - self.min.position.y,

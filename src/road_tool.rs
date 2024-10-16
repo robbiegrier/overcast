@@ -9,6 +9,8 @@ use crate::{
 use bevy::prelude::*;
 use std::f32::consts::FRAC_PI_2;
 
+const ROAD_HEIGHT: f32 = 0.05;
+
 pub struct RoadToolPlugin;
 
 impl Plugin for RoadToolPlugin {
@@ -37,9 +39,38 @@ impl Plugin for RoadToolPlugin {
 
 #[derive(Component, Debug)]
 pub struct RoadSegment {
-    orientation: RoadOrientation,
+    orientation: Axis,
     width: i32,
     area: GridArea,
+}
+
+impl RoadSegment {
+    fn new(area: GridArea, orientation: Axis) -> Self {
+        let width = if orientation == Axis::Z {
+            area.cell_dimensions().x
+        } else {
+            area.cell_dimensions().y
+        };
+
+        Self {
+            orientation,
+            width,
+            area,
+        }
+    }
+
+    fn get_intersection_area(&self, turn_to_area: GridArea) -> GridArea {
+        match self.orientation {
+            Axis::Z => GridArea::new(
+                GridCell::new(self.area.min.position.x, turn_to_area.min.position.y),
+                GridCell::new(self.area.max.position.x, turn_to_area.max.position.y),
+            ),
+            Axis::X => GridArea::new(
+                GridCell::new(turn_to_area.min.position.x, self.area.min.position.y),
+                GridCell::new(turn_to_area.max.position.x, self.area.max.position.y),
+            ),
+        }
+    }
 }
 
 #[derive(Component, Debug)]
@@ -54,7 +85,7 @@ enum RoadToolMode {
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
-pub enum RoadOrientation {
+pub enum Axis {
     #[default]
     X,
     Z,
@@ -68,7 +99,7 @@ pub struct RoadTool {
     dragging: bool,
     drag_area: GridArea,
     mode: RoadToolMode,
-    orientation: RoadOrientation,
+    orientation: Axis,
 }
 
 impl RoadTool {
@@ -80,7 +111,7 @@ impl RoadTool {
             dragging: false,
             drag_area: GridArea::at(Vec3::ZERO, 0, 0),
             mode: RoadToolMode::Spawner,
-            orientation: RoadOrientation::Z,
+            orientation: Axis::Z,
         }
     }
 
@@ -93,7 +124,7 @@ impl RoadTool {
     }
 
     fn drag_start_area(&self) -> GridArea {
-        if self.orientation == RoadOrientation::Z {
+        if self.orientation == Axis::Z {
             GridArea::at(self.drag_start_ground_position, self.width, 1)
         } else {
             GridArea::at(self.drag_start_ground_position, 1, self.width)
@@ -101,7 +132,7 @@ impl RoadTool {
     }
 
     fn drag_end_area(&self) -> GridArea {
-        if self.orientation == RoadOrientation::Z {
+        if self.orientation == Axis::Z {
             GridArea::at(self.ground_position.with_x(self.drag_start_ground_position.x), self.width, 1)
         } else {
             GridArea::at(self.ground_position.with_z(self.drag_start_ground_position.z), 1, self.width)
@@ -109,7 +140,7 @@ impl RoadTool {
     }
 
     fn hover_area(&self) -> GridArea {
-        if self.orientation == RoadOrientation::Z {
+        if self.orientation == Axis::Z {
             GridArea::at(self.ground_position, self.width, 1)
         } else {
             GridArea::at(self.ground_position, 1, self.width)
@@ -120,7 +151,7 @@ impl RoadTool {
         let start = self.drag_start_area();
         let end = self.drag_end_area();
 
-        if self.orientation == RoadOrientation::Z {
+        if self.orientation == Axis::Z {
             if end.max.position.y >= start.max.position.y {
                 start.adjacent_bottom()
             } else {
@@ -139,7 +170,7 @@ impl RoadTool {
         let start = self.drag_start_area();
         let end = self.drag_end_area();
 
-        if self.orientation == RoadOrientation::Z {
+        if self.orientation == Axis::Z {
             if end.max.position.y >= start.max.position.y {
                 end.adjacent_top()
             } else {
@@ -227,8 +258,8 @@ fn change_orientation(mut query: Query<&mut RoadTool>, keyboard: Res<ButtonInput
 
     if keyboard.just_pressed(KeyCode::Tab) {
         tool.orientation = match tool.orientation {
-            RoadOrientation::X => RoadOrientation::Z,
-            RoadOrientation::Z => RoadOrientation::X,
+            Axis::X => Axis::Z,
+            Axis::Z => Axis::X,
         }
     }
 }
@@ -278,21 +309,9 @@ fn handle_end_drag(
             if let Ok(adj) = segment_query.get(adjacent_entity) {
                 if adj.orientation != tool.orientation {
                     println!("at start, create intersection");
-                    if adj.orientation == RoadOrientation::Z {
-                        let intersection_area = GridArea::new(
-                            GridCell::new(adj.area.min.position.x, tool.drag_area.min.position.y),
-                            GridCell::new(adj.area.max.position.x, tool.drag_area.max.position.y),
-                        );
-                        splitter.send(RoadSplitEvent::new(adjacent_entity, intersection_area));
-                        intersection_event.send(IntersectionCreateEvent::new(intersection_area));
-                    } else {
-                        let intersection_area = GridArea::new(
-                            GridCell::new(tool.drag_area.min.position.x, adj.area.min.position.y),
-                            GridCell::new(tool.drag_area.max.position.x, adj.area.max.position.y),
-                        );
-                        splitter.send(RoadSplitEvent::new(adjacent_entity, intersection_area));
-                        intersection_event.send(IntersectionCreateEvent::new(intersection_area));
-                    }
+                    let intersection_area = adj.get_intersection_area(tool.drag_area);
+                    splitter.send(RoadSplitEvent::new(adjacent_entity, intersection_area));
+                    intersection_event.send(IntersectionCreateEvent::new(intersection_area));
                 } else if adj.width == tool.width {
                     println!("at start, create extension");
                 }
@@ -303,21 +322,9 @@ fn handle_end_drag(
             if let Ok(adj) = segment_query.get(adjacent_entity) {
                 if adj.orientation != tool.orientation {
                     println!("at end, create intersection");
-                    if adj.orientation == RoadOrientation::Z {
-                        let intersection_area = GridArea::new(
-                            GridCell::new(adj.area.min.position.x, tool.drag_area.min.position.y),
-                            GridCell::new(adj.area.max.position.x, tool.drag_area.max.position.y),
-                        );
-                        splitter.send(RoadSplitEvent::new(adjacent_entity, intersection_area));
-                        intersection_event.send(IntersectionCreateEvent::new(intersection_area));
-                    } else {
-                        let intersection_area = GridArea::new(
-                            GridCell::new(tool.drag_area.min.position.x, adj.area.min.position.y),
-                            GridCell::new(tool.drag_area.max.position.x, adj.area.max.position.y),
-                        );
-                        splitter.send(RoadSplitEvent::new(adjacent_entity, intersection_area));
-                        intersection_event.send(IntersectionCreateEvent::new(intersection_area));
-                    }
+                    let intersection_area = adj.get_intersection_area(tool.drag_area);
+                    splitter.send(RoadSplitEvent::new(adjacent_entity, intersection_area));
+                    intersection_event.send(IntersectionCreateEvent::new(intersection_area));
                 } else if adj.width == tool.width {
                     println!("at end, create extension");
                 }
@@ -339,27 +346,17 @@ fn spawn_roads(
 ) {
     for &RoadCreateEvent { area, orientation } in road_create_event_reader.read() {
         let size = area.dimensions();
-        let road_height = 0.05;
-        let road_color = if orientation == RoadOrientation::Z { 0.05 } else { 0.1 };
-        let width = if orientation == RoadOrientation::Z {
-            area.cell_dimenions().x
-        } else {
-            area.cell_dimenions().y
-        };
+        let road_color = if orientation == Axis::Z { 0.05 } else { 0.1 };
 
         let entity = commands
             .spawn((
                 PbrBundle {
-                    mesh: meshes.add(Cuboid::new(size.x, road_height, size.y)),
+                    mesh: meshes.add(Cuboid::new(size.x, ROAD_HEIGHT, size.y)),
                     material: materials.add(Color::linear_rgb(road_color, road_color, road_color)),
-                    transform: Transform::from_translation(area.center().with_y(road_height / 2.0)),
+                    transform: Transform::from_translation(area.center().with_y(ROAD_HEIGHT / 2.0)),
                     ..default()
                 },
-                RoadSegment {
-                    orientation: orientation,
-                    width: width,
-                    area: area,
-                },
+                RoadSegment::new(area, orientation),
             ))
             .id();
 
@@ -376,14 +373,13 @@ fn spawn_intersections(
 ) {
     for &IntersectionCreateEvent { area } in intersection_event.read() {
         let size = area.dimensions();
-        let road_height = 0.05;
 
         let entity = commands
             .spawn((
                 PbrBundle {
-                    mesh: meshes.add(Cuboid::new(size.x, road_height, size.y)),
+                    mesh: meshes.add(Cuboid::new(size.x, ROAD_HEIGHT, size.y)),
                     material: materials.add(Color::linear_rgb(0.0, 0.1, 0.3)),
-                    transform: Transform::from_translation(area.center().with_y(road_height / 2.0)),
+                    transform: Transform::from_translation(area.center().with_y(ROAD_HEIGHT / 2.0)),
                     ..default()
                 },
                 Intersection { area },
@@ -405,7 +401,7 @@ fn split_roads(
         if let Ok(segment) = segment_query.get(entity) {
             grid_query.single_mut().erase(entity);
 
-            if segment.orientation == RoadOrientation::Z {
+            if segment.orientation == Axis::Z {
                 if segment.area.min.position.y < split_area.min.position.y {
                     let split_max = GridCell::new(segment.area.max.position.x, split_area.adjacent_bottom().min.position.y);
                     let road_area = GridArea::new(segment.area.min, split_max);

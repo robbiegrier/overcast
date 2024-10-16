@@ -1,14 +1,14 @@
-use crate::{grid_area::GridArea, road_tool::RoadOrientation};
+use crate::{grid_area::GridArea, road_tool::Axis};
 use bevy::prelude::*;
 
 #[derive(Event, Debug)]
 pub struct RoadCreateEvent {
     pub area: GridArea,
-    pub orientation: RoadOrientation,
+    pub orientation: Axis,
 }
 
 impl RoadCreateEvent {
-    pub fn new(area: GridArea, orientation: RoadOrientation) -> Self {
+    pub fn new(area: GridArea, orientation: Axis) -> Self {
         Self { area, orientation }
     }
 }
