@@ -296,7 +296,6 @@ fn handle_end_drag(
                     intersector.send(IntersectionCreateEvent::new(intersection_area));
                 } else if adj.drive_width() == tool.width {
                     // println!("at start, create extension");
-                    // extender.send(RoadExtendEvent::new(adjacent_entity, tool.drag_area));
                     extend_start = true;
                     extend_entities.push(adjacent_entity);
                 }
@@ -312,7 +311,6 @@ fn handle_end_drag(
                     intersector.send(IntersectionCreateEvent::new(intersection_area));
                 } else if adj.drive_width() == tool.width {
                     // println!("at end, create extension");
-                    // extender.send(RoadExtendEvent::new(adjacent_entity, tool.drag_area));
                     extend_end = true;
                     extend_entities.push(adjacent_entity);
                 }
