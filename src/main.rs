@@ -1,5 +1,7 @@
 mod building_tool;
 mod camera;
+mod graph;
+mod graph_events;
 mod grid;
 mod grid_area;
 mod grid_cell;
@@ -15,6 +17,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugins(camera::CameraPlugin)
         .add_plugins(grid::GridPlugin)
+        .add_plugins(graph::GraphPlugin)
         .add_plugins(toolbar::ToolbarPlugin)
         .add_plugins(weather::WeatherPlugin)
         .run();

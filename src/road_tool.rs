@@ -1,5 +1,6 @@
 use crate::{
     camera::PlayerCameraController,
+    graph_events::*,
     grid::{Grid, Ground},
     grid_area::GridArea,
     grid_cell::GridCell,
@@ -23,12 +24,12 @@ impl Plugin for RoadToolPlugin {
                 Update,
                 (
                     update_ground_position,
-                    split_roads.before(spawn_roads).before(spawn_intersections),
                     (adjust_tool_size, change_orientation, handle_action)
                         .after(update_ground_position)
+                        .before(split_roads)
                         .before(spawn_roads)
-                        .before(spawn_intersections)
-                        .before(split_roads),
+                        .before(spawn_intersections),
+                    split_roads.before(spawn_roads).before(spawn_intersections),
                     spawn_roads,
                     spawn_intersections,
                 )
@@ -39,13 +40,13 @@ impl Plugin for RoadToolPlugin {
 
 #[derive(Component, Debug)]
 pub struct RoadSegment {
-    orientation: Axis,
-    width: i32,
-    area: GridArea,
+    pub orientation: Axis,
+    pub width: i32,
+    pub area: GridArea,
 }
 
 impl RoadSegment {
-    fn new(area: GridArea, orientation: Axis) -> Self {
+    pub fn new(area: GridArea, orientation: Axis) -> Self {
         let width = if orientation == Axis::Z {
             area.cell_dimensions().x
         } else {
@@ -56,6 +57,13 @@ impl RoadSegment {
             orientation,
             width,
             area,
+        }
+    }
+
+    pub fn drive_length(&self) -> i32 {
+        match self.orientation {
+            Axis::Z => self.area.cell_dimensions().y,
+            Axis::X => self.area.cell_dimensions().x,
         }
     }
 
@@ -339,6 +347,7 @@ fn handle_end_drag(
 
 fn spawn_roads(
     mut road_create_event_reader: EventReader<RoadCreateEvent>,
+    mut graph_event: EventWriter<GraphEdgeAddEvent>,
     mut commands: Commands,
     mut grid_query: Query<&mut Grid>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -361,11 +370,13 @@ fn spawn_roads(
             .id();
 
         grid_query.single_mut().mark_area_occupied(area, entity);
+        graph_event.send(GraphEdgeAddEvent(entity));
     }
 }
 
 fn spawn_intersections(
     mut intersection_event: EventReader<IntersectionCreateEvent>,
+    mut graph_event: EventWriter<GraphNodeAddEvent>,
     mut commands: Commands,
     mut grid_query: Query<&mut Grid>,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -387,11 +398,13 @@ fn spawn_intersections(
             .id();
 
         grid_query.single_mut().mark_area_occupied(area, entity);
+        graph_event.send(GraphNodeAddEvent(entity));
     }
 }
 
 fn split_roads(
     mut split_event: EventReader<RoadSplitEvent>,
+    mut rem_event: EventWriter<GraphEdgeRemoveEvent>,
     segment_query: Query<&mut RoadSegment>,
     mut roads: EventWriter<RoadCreateEvent>,
     mut grid_query: Query<&mut Grid>,
@@ -428,6 +441,7 @@ fn split_roads(
             }
 
             commands.entity(entity).despawn();
+            rem_event.send(GraphEdgeRemoveEvent(entity));
         }
     }
 }

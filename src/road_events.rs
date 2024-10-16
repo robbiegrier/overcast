@@ -14,6 +14,17 @@ impl RoadCreateEvent {
 }
 
 #[derive(Event, Debug)]
+pub struct IntersectionCreateEvent {
+    pub area: GridArea,
+}
+
+impl IntersectionCreateEvent {
+    pub fn new(area: GridArea) -> Self {
+        Self { area }
+    }
+}
+
+#[derive(Event, Debug)]
 pub struct RoadSplitEvent {
     pub entity: Entity,
     pub split_area: GridArea,
@@ -22,16 +33,5 @@ pub struct RoadSplitEvent {
 impl RoadSplitEvent {
     pub fn new(entity: Entity, split_area: GridArea) -> Self {
         Self { entity, split_area }
-    }
-}
-
-#[derive(Event, Debug)]
-pub struct IntersectionCreateEvent {
-    pub area: GridArea,
-}
-
-impl IntersectionCreateEvent {
-    pub fn new(area: GridArea) -> Self {
-        Self { area }
     }
 }
