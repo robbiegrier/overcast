@@ -83,7 +83,7 @@ impl RoadSegment {
 
 #[derive(Component, Debug)]
 pub struct Intersection {
-    area: GridArea,
+    pub area: GridArea,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
