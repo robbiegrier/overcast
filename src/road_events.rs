@@ -35,3 +35,15 @@ impl RoadSplitEvent {
         Self { entity, split_area }
     }
 }
+
+#[derive(Event, Debug)]
+pub struct RoadExtendEvent {
+    pub entity: Entity,
+    pub extension: GridArea,
+}
+
+impl RoadExtendEvent {
+    pub fn new(entity: Entity, extension: GridArea) -> Self {
+        Self { entity, extension }
+    }
+}

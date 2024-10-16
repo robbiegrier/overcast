@@ -6,6 +6,7 @@ mod grid;
 mod grid_area;
 mod grid_cell;
 mod road_events;
+mod road_segment;
 mod road_tool;
 mod toolbar;
 mod weather;

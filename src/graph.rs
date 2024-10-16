@@ -1,7 +1,8 @@
 use crate::{
     graph_events::*,
     grid::{Grid, Ground},
-    road_tool::{Intersection, RoadSegment},
+    road_segment::RoadSegment,
+    road_tool::Intersection,
 };
 use bevy::{prelude::*, utils::HashMap};
 
