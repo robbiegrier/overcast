@@ -3,7 +3,8 @@ use crate::{
     grid::{Grid, Ground},
     grid_area::GridArea,
     grid_cell::GridCell,
-    tool::ToolState,
+    road_events::*,
+    toolbar::ToolState,
 };
 use bevy::prelude::*;
 use std::f32::consts::FRAC_PI_2;
@@ -12,11 +13,25 @@ pub struct RoadToolPlugin;
 
 impl Plugin for RoadToolPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_tool).add_systems(
-            Update,
-            (update_ground_position, (adjust_tool_size, change_orientation, handle_action))
-                .run_if(in_state(ToolState::Road)),
-        );
+        app.add_systems(Startup, spawn_tool)
+            .add_event::<RoadCreateEvent>()
+            .add_event::<IntersectionCreateEvent>()
+            .add_event::<RoadSplitEvent>()
+            .add_systems(
+                Update,
+                (
+                    update_ground_position,
+                    split_roads.before(spawn_roads).before(spawn_intersections),
+                    (adjust_tool_size, change_orientation, handle_action)
+                        .after(update_ground_position)
+                        .before(spawn_roads)
+                        .before(spawn_intersections)
+                        .before(split_roads),
+                    spawn_roads,
+                    spawn_intersections,
+                )
+                    .run_if(in_state(ToolState::Road)),
+            );
     }
 }
 
@@ -219,14 +234,14 @@ fn change_orientation(mut query: Query<&mut RoadTool>, keyboard: Res<ButtonInput
 }
 
 fn handle_action(
-    commands: Commands,
     mut query: Query<&mut RoadTool>,
     mut grid_query: Query<&mut Grid>,
     segment_query: Query<&mut RoadSegment>,
     mouse: Res<ButtonInput<MouseButton>>,
     keyboard: Res<ButtonInput<KeyCode>>,
-    meshes: ResMut<Assets<Mesh>>,
-    materials: ResMut<Assets<StandardMaterial>>,
+    event: EventWriter<RoadCreateEvent>,
+    splitter: EventWriter<RoadSplitEvent>,
+    intersection_event: EventWriter<IntersectionCreateEvent>,
 ) {
     let mut tool = query.single_mut();
     let mut grid = grid_query.single_mut();
@@ -235,9 +250,10 @@ fn handle_action(
         match tool.mode {
             RoadToolMode::Spawner => {
                 if !tool.dragging {
-                    handle_start_drag(&mut tool);
+                    tool.dragging = true;
+                    tool.drag_start_ground_position = tool.ground_position;
                 } else {
-                    handle_end_drag(commands, &mut tool, &mut grid, meshes, materials, segment_query);
+                    handle_end_drag(&mut tool, &mut grid, segment_query, event, splitter, intersection_event);
                 }
             }
             RoadToolMode::Eraser => {}
@@ -249,243 +265,173 @@ fn handle_action(
     }
 }
 
-fn handle_start_drag(tool: &mut RoadTool) {
-    tool.dragging = true;
-    tool.drag_start_ground_position = tool.ground_position;
-}
-
 fn handle_end_drag(
-    mut commands: Commands,
     tool: &mut RoadTool,
     grid: &mut Grid,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     segment_query: Query<&mut RoadSegment>,
+    mut event: EventWriter<RoadCreateEvent>,
+    mut splitter: EventWriter<RoadSplitEvent>,
+    mut intersection_event: EventWriter<IntersectionCreateEvent>,
 ) {
     if grid.is_valid_paint_area(tool.drag_area) {
         if let Some(adjacent_entity) = grid.single_entity_in_area(tool.drag_start_attach_area()) {
-            if let Ok(adjacent_road_segment) = segment_query.get(adjacent_entity) {
-                if adjacent_road_segment.orientation != tool.orientation {
+            if let Ok(adj) = segment_query.get(adjacent_entity) {
+                if adj.orientation != tool.orientation {
                     println!("at start, create intersection");
-
-                    grid.erase(adjacent_entity);
-
-                    if adjacent_road_segment.orientation == RoadOrientation::Z {
-                        split_road_z(adjacent_road_segment, &mut commands, tool, grid, &mut meshes, &mut materials);
+                    if adj.orientation == RoadOrientation::Z {
+                        let intersection_area = GridArea::new(
+                            GridCell::new(adj.area.min.position.x, tool.drag_area.min.position.y),
+                            GridCell::new(adj.area.max.position.x, tool.drag_area.max.position.y),
+                        );
+                        splitter.send(RoadSplitEvent::new(adjacent_entity, intersection_area));
+                        intersection_event.send(IntersectionCreateEvent::new(intersection_area));
                     } else {
-                        split_road_x(adjacent_road_segment, &mut commands, tool, grid, &mut meshes, &mut materials);
+                        let intersection_area = GridArea::new(
+                            GridCell::new(tool.drag_area.min.position.x, adj.area.min.position.y),
+                            GridCell::new(tool.drag_area.max.position.x, adj.area.max.position.y),
+                        );
+                        splitter.send(RoadSplitEvent::new(adjacent_entity, intersection_area));
+                        intersection_event.send(IntersectionCreateEvent::new(intersection_area));
                     }
-
-                    commands.entity(adjacent_entity).despawn();
-                } else if adjacent_road_segment.width == tool.width {
+                } else if adj.width == tool.width {
                     println!("at start, create extension");
                 }
             }
-        } else {
-            println!("at start, new road");
         }
 
         if let Some(adjacent_entity) = grid.single_entity_in_area(tool.drag_end_attach_area()) {
-            if let Ok(adjacent_road_segment) = segment_query.get(adjacent_entity) {
-                if adjacent_road_segment.orientation != tool.orientation {
+            if let Ok(adj) = segment_query.get(adjacent_entity) {
+                if adj.orientation != tool.orientation {
                     println!("at end, create intersection");
-
-                    grid.erase(adjacent_entity);
-
-                    if adjacent_road_segment.orientation == RoadOrientation::Z {
-                        split_road_z(adjacent_road_segment, &mut commands, tool, grid, &mut meshes, &mut materials);
+                    if adj.orientation == RoadOrientation::Z {
+                        let intersection_area = GridArea::new(
+                            GridCell::new(adj.area.min.position.x, tool.drag_area.min.position.y),
+                            GridCell::new(adj.area.max.position.x, tool.drag_area.max.position.y),
+                        );
+                        splitter.send(RoadSplitEvent::new(adjacent_entity, intersection_area));
+                        intersection_event.send(IntersectionCreateEvent::new(intersection_area));
                     } else {
-                        split_road_x(adjacent_road_segment, &mut commands, tool, grid, &mut meshes, &mut materials);
+                        let intersection_area = GridArea::new(
+                            GridCell::new(tool.drag_area.min.position.x, adj.area.min.position.y),
+                            GridCell::new(tool.drag_area.max.position.x, adj.area.max.position.y),
+                        );
+                        splitter.send(RoadSplitEvent::new(adjacent_entity, intersection_area));
+                        intersection_event.send(IntersectionCreateEvent::new(intersection_area));
                     }
-
-                    commands.entity(adjacent_entity).despawn();
-                } else if adjacent_road_segment.width == tool.width {
+                } else if adj.width == tool.width {
                     println!("at end, create extension");
                 }
             }
-        } else {
-            println!("at end, new road");
         }
 
-        spawn_road_segment(
-            tool.orientation,
-            tool.width,
-            tool.drag_area,
-            grid,
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-        );
+        event.send(RoadCreateEvent::new(tool.drag_area, tool.orientation));
     }
 
     tool.dragging = false;
 }
 
-fn spawn_road_segment(
-    orientation: RoadOrientation,
-    width: i32,
-    area: GridArea,
-    grid: &mut Grid,
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+fn spawn_roads(
+    mut road_create_event_reader: EventReader<RoadCreateEvent>,
+    mut commands: Commands,
+    mut grid_query: Query<&mut Grid>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let size = area.dimensions();
-    let road_height = 0.05;
-    let road_color = if orientation == RoadOrientation::Z { 0.05 } else { 0.1 };
+    for &RoadCreateEvent { area, orientation } in road_create_event_reader.read() {
+        let size = area.dimensions();
+        let road_height = 0.05;
+        let road_color = if orientation == RoadOrientation::Z { 0.05 } else { 0.1 };
+        let width = if orientation == RoadOrientation::Z {
+            area.cell_dimenions().x
+        } else {
+            area.cell_dimenions().y
+        };
 
-    let entity = commands
-        .spawn((
-            PbrBundle {
-                mesh: meshes.add(Cuboid::new(size.x, road_height, size.y)),
-                material: materials.add(Color::linear_rgb(road_color, road_color, road_color)),
-                transform: Transform::from_translation(area.center().with_y(road_height / 2.0)),
-                ..default()
-            },
-            RoadSegment {
-                orientation: orientation,
-                width: width,
-                area: area,
-            },
-        ))
-        .id();
+        let entity = commands
+            .spawn((
+                PbrBundle {
+                    mesh: meshes.add(Cuboid::new(size.x, road_height, size.y)),
+                    material: materials.add(Color::linear_rgb(road_color, road_color, road_color)),
+                    transform: Transform::from_translation(area.center().with_y(road_height / 2.0)),
+                    ..default()
+                },
+                RoadSegment {
+                    orientation: orientation,
+                    width: width,
+                    area: area,
+                },
+            ))
+            .id();
 
-    grid.mark_area_occupied(area, entity);
+        grid_query.single_mut().mark_area_occupied(area, entity);
+    }
 }
 
-fn spawn_intersection(
-    area: GridArea,
-    grid: &mut Grid,
-    commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+fn spawn_intersections(
+    mut intersection_event: EventReader<IntersectionCreateEvent>,
+    mut commands: Commands,
+    mut grid_query: Query<&mut Grid>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
-    let size = area.dimensions();
-    let road_height = 0.05;
+    for &IntersectionCreateEvent { area } in intersection_event.read() {
+        let size = area.dimensions();
+        let road_height = 0.05;
 
-    let entity = commands
-        .spawn((
-            PbrBundle {
-                mesh: meshes.add(Cuboid::new(size.x, road_height, size.y)),
-                material: materials.add(Color::linear_rgb(0.0, 0.1, 0.3)),
-                transform: Transform::from_translation(area.center().with_y(road_height / 2.0)),
-                ..default()
-            },
-            Intersection { area: area },
-        ))
-        .id();
+        let entity = commands
+            .spawn((
+                PbrBundle {
+                    mesh: meshes.add(Cuboid::new(size.x, road_height, size.y)),
+                    material: materials.add(Color::linear_rgb(0.0, 0.1, 0.3)),
+                    transform: Transform::from_translation(area.center().with_y(road_height / 2.0)),
+                    ..default()
+                },
+                Intersection { area },
+            ))
+            .id();
 
-    grid.mark_area_occupied(area, entity);
+        grid_query.single_mut().mark_area_occupied(area, entity);
+    }
 }
 
-fn split_road_z(
-    adjacent_road_segment: &RoadSegment,
-    mut commands: &mut Commands,
-    tool: &mut RoadTool,
-    grid: &mut Grid,
-    mut meshes: &mut ResMut<Assets<Mesh>>,
-    mut materials: &mut ResMut<Assets<StandardMaterial>>,
+fn split_roads(
+    mut split_event: EventReader<RoadSplitEvent>,
+    segment_query: Query<&mut RoadSegment>,
+    mut roads: EventWriter<RoadCreateEvent>,
+    mut grid_query: Query<&mut Grid>,
+    mut commands: Commands,
 ) {
-    if adjacent_road_segment.area.min.position.y < tool.drag_area.min.position.y {
-        spawn_road_segment(
-            adjacent_road_segment.orientation,
-            adjacent_road_segment.width,
-            GridArea {
-                min: adjacent_road_segment.area.min,
-                max: GridCell::new(
-                    adjacent_road_segment.area.max.position.x,
-                    tool.drag_area.adjacent_bottom().min.position.y,
-                ),
-            },
-            grid,
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-        );
+    for &RoadSplitEvent { entity, split_area } in split_event.read() {
+        if let Ok(segment) = segment_query.get(entity) {
+            grid_query.single_mut().erase(entity);
+
+            if segment.orientation == RoadOrientation::Z {
+                if segment.area.min.position.y < split_area.min.position.y {
+                    let split_max = GridCell::new(segment.area.max.position.x, split_area.adjacent_bottom().min.position.y);
+                    let road_area = GridArea::new(segment.area.min, split_max);
+                    roads.send(RoadCreateEvent::new(road_area, segment.orientation));
+                }
+
+                if segment.area.max.position.y > split_area.max.position.y {
+                    let split_min = GridCell::new(segment.area.min.position.x, split_area.adjacent_top().max.position.y);
+                    let road_area = GridArea::new(split_min, segment.area.max);
+                    roads.send(RoadCreateEvent::new(road_area, segment.orientation));
+                }
+            } else {
+                if segment.area.min.position.x < split_area.min.position.x {
+                    let split_max = GridCell::new(split_area.adjacent_left().min.position.x, segment.area.max.position.y);
+                    let road_area = GridArea::new(segment.area.min, split_max);
+                    roads.send(RoadCreateEvent::new(road_area, segment.orientation));
+                }
+
+                if segment.area.max.position.x > split_area.max.position.x {
+                    let split_min = GridCell::new(split_area.adjacent_right().max.position.x, segment.area.min.position.y);
+                    let road_area = GridArea::new(split_min, segment.area.max);
+                    roads.send(RoadCreateEvent::new(road_area, segment.orientation));
+                }
+            }
+
+            commands.entity(entity).despawn();
+        }
     }
-
-    if adjacent_road_segment.area.max.position.y > tool.drag_area.max.position.y {
-        spawn_road_segment(
-            adjacent_road_segment.orientation,
-            adjacent_road_segment.width,
-            GridArea {
-                min: GridCell::new(
-                    adjacent_road_segment.area.min.position.x,
-                    tool.drag_area.adjacent_top().max.position.y,
-                ),
-                max: adjacent_road_segment.area.max,
-            },
-            grid,
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-        );
-    }
-
-    spawn_intersection(
-        GridArea {
-            min: GridCell::new(adjacent_road_segment.area.min.position.x, tool.drag_area.min.position.y),
-            max: GridCell::new(adjacent_road_segment.area.max.position.x, tool.drag_area.max.position.y),
-        },
-        grid,
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-    );
-}
-
-fn split_road_x(
-    adjacent_road_segment: &RoadSegment,
-    mut commands: &mut Commands,
-    tool: &mut RoadTool,
-    grid: &mut Grid,
-    mut meshes: &mut ResMut<Assets<Mesh>>,
-    mut materials: &mut ResMut<Assets<StandardMaterial>>,
-) {
-    if adjacent_road_segment.area.min.position.x < tool.drag_area.min.position.x {
-        spawn_road_segment(
-            adjacent_road_segment.orientation,
-            adjacent_road_segment.width,
-            GridArea {
-                min: adjacent_road_segment.area.min,
-                max: GridCell::new(
-                    tool.drag_area.adjacent_left().min.position.x,
-                    adjacent_road_segment.area.max.position.y,
-                ),
-            },
-            grid,
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-        );
-    }
-
-    if adjacent_road_segment.area.max.position.x > tool.drag_area.max.position.x {
-        spawn_road_segment(
-            adjacent_road_segment.orientation,
-            adjacent_road_segment.width,
-            GridArea {
-                min: GridCell::new(
-                    tool.drag_area.adjacent_right().max.position.x,
-                    adjacent_road_segment.area.min.position.y,
-                ),
-                max: adjacent_road_segment.area.max,
-            },
-            grid,
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-        );
-    }
-
-    spawn_intersection(
-        GridArea {
-            min: GridCell::new(tool.drag_area.min.position.x, adjacent_road_segment.area.min.position.y),
-            max: GridCell::new(tool.drag_area.max.position.x, adjacent_road_segment.area.max.position.y),
-        },
-        grid,
-        &mut commands,
-        &mut meshes,
-        &mut materials,
-    );
 }

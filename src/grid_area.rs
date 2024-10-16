@@ -8,6 +8,10 @@ pub struct GridArea {
 }
 
 impl GridArea {
+    pub fn new(min: GridCell, max: GridCell) -> Self {
+        Self { min, max }
+    }
+
     pub fn at(location: Vec3, width: i32, height: i32) -> Self {
         let hover_cell = GridCell::at(location);
         let mut min = hover_cell.position.clone();
@@ -50,6 +54,13 @@ impl GridArea {
         Vec2 {
             x: max.x - min.x,
             y: max.z - min.z,
+        }
+    }
+
+    pub fn cell_dimenions(&self) -> IVec2 {
+        IVec2 {
+            x: self.max.position.x - self.min.position.x,
+            y: self.max.position.y - self.min.position.y,
         }
     }
 

@@ -9,9 +9,9 @@ pub enum ToolState {
     View,
 }
 
-pub struct ToolPlugin;
+pub struct ToolbarPlugin;
 
-impl Plugin for ToolPlugin {
+impl Plugin for ToolbarPlugin {
     fn build(&self, app: &mut App) {
         app.init_state::<ToolState>().add_systems(Update, change_tool).add_plugins((BuildingToolPlugin, RoadToolPlugin));
     }
