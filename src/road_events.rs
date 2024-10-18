@@ -14,6 +14,17 @@ impl RoadCreateEvent {
 }
 
 #[derive(Event, Debug)]
+pub struct RoadDestroyEvent {
+    pub entity: Entity,
+}
+
+impl RoadDestroyEvent {
+    pub fn new(entity: Entity) -> Self {
+        Self { entity }
+    }
+}
+
+#[derive(Event, Debug)]
 pub struct IntersectionCreateEvent {
     pub area: GridArea,
 }

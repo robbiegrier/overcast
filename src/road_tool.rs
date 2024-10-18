@@ -15,28 +15,45 @@ const ROAD_HEIGHT: f32 = 0.05;
 
 pub struct RoadToolPlugin;
 
+#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
+pub enum RoadToolSet {
+    UpdateView,
+    UserInput,
+    HighLevelSideEffects,
+    LowLevelDestruction,
+    LowLevelSpawning,
+}
+
 impl Plugin for RoadToolPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_tool)
             .add_event::<RoadCreateEvent>()
+            .add_event::<RoadDestroyEvent>()
             .add_event::<IntersectionCreateEvent>()
             .add_event::<RoadSplitEvent>()
             .add_event::<RoadExtendEvent>()
             .add_event::<RoadBridgeEvent>()
+            .configure_sets(
+                Update,
+                (
+                    RoadToolSet::UpdateView,
+                    RoadToolSet::UserInput,
+                    RoadToolSet::HighLevelSideEffects,
+                    RoadToolSet::LowLevelDestruction,
+                    RoadToolSet::LowLevelSpawning,
+                )
+                    .chain()
+                    .run_if(in_state(ToolState::Road)),
+            )
             .add_systems(
                 Update,
                 (
-                    update_ground_position,
-                    (adjust_tool_size, change_orientation, handle_action)
-                        .after(update_ground_position)
-                        .before(split_roads)
-                        .before(spawn_roads)
-                        .before(spawn_intersections),
-                    (split_roads, extend_roads, bridge_roads).before(spawn_roads).before(spawn_intersections),
-                    spawn_roads,
-                    spawn_intersections,
-                )
-                    .run_if(in_state(ToolState::Road)),
+                    (update_ground_position).in_set(RoadToolSet::UserInput),
+                    (adjust_tool_size, change_orientation, handle_action).in_set(RoadToolSet::UserInput),
+                    (split_roads, extend_roads, bridge_roads).in_set(RoadToolSet::HighLevelSideEffects),
+                    (destroy_roads).in_set(RoadToolSet::LowLevelDestruction),
+                    (spawn_roads, spawn_intersections).in_set(RoadToolSet::LowLevelSpawning),
+                ),
             );
     }
 }
@@ -360,6 +377,19 @@ fn spawn_roads(
     }
 }
 
+fn destroy_roads(
+    mut commands: Commands,
+    mut destroy_event: EventReader<RoadDestroyEvent>,
+    mut rem_event: EventWriter<GraphEdgeRemoveEvent>,
+    mut grid_query: Query<&mut Grid>,
+) {
+    for &RoadDestroyEvent { entity } in destroy_event.read() {
+        grid_query.single_mut().erase(entity);
+        commands.entity(entity).despawn();
+        rem_event.send(GraphEdgeRemoveEvent(entity));
+    }
+}
+
 fn spawn_intersections(
     mut intersection_event: EventReader<IntersectionCreateEvent>,
     mut graph_event: EventWriter<GraphNodeAddEvent>,
@@ -390,16 +420,12 @@ fn spawn_intersections(
 
 fn split_roads(
     mut split_event: EventReader<RoadSplitEvent>,
-    mut rem_event: EventWriter<GraphEdgeRemoveEvent>,
+    mut destroyer: EventWriter<RoadDestroyEvent>,
     segment_query: Query<&mut RoadSegment>,
     mut roads: EventWriter<RoadCreateEvent>,
-    mut grid_query: Query<&mut Grid>,
-    mut commands: Commands,
 ) {
     for &RoadSplitEvent { entity, split_area } in split_event.read() {
         if let Ok(segment) = segment_query.get(entity) {
-            grid_query.single_mut().erase(entity);
-
             if segment.orientation == Axis::Z {
                 if segment.area.min.position.y < split_area.min.position.y {
                     let split_max = GridCell::new(segment.area.max.position.x, split_area.adjacent_bottom().min.position.y);
@@ -426,45 +452,39 @@ fn split_roads(
                 }
             }
 
-            commands.entity(entity).despawn();
-            rem_event.send(GraphEdgeRemoveEvent(entity));
+            destroyer.send(RoadDestroyEvent::new(entity));
         }
     }
 }
 
 fn extend_roads(
     mut extend_event: EventReader<RoadExtendEvent>,
-    mut rem_event: EventWriter<GraphEdgeRemoveEvent>,
+    mut destroyer: EventWriter<RoadDestroyEvent>,
     segment_query: Query<&mut RoadSegment>,
     mut roads: EventWriter<RoadCreateEvent>,
-    mut commands: Commands,
 ) {
     for &RoadExtendEvent { entity, extension } in extend_event.read() {
         if let Ok(original_segment) = segment_query.get(entity) {
             let extended_area = original_segment.area.union(extension);
             roads.send(RoadCreateEvent::new(extended_area, original_segment.orientation));
-            commands.entity(entity).despawn();
-            rem_event.send(GraphEdgeRemoveEvent(entity));
+            destroyer.send(RoadDestroyEvent::new(entity));
         }
     }
 }
 
 fn bridge_roads(
     mut bridge_event: EventReader<RoadBridgeEvent>,
-    mut rem_event: EventWriter<GraphEdgeRemoveEvent>,
+    mut destroyer: EventWriter<RoadDestroyEvent>,
     segment_query: Query<&mut RoadSegment>,
     mut roads: EventWriter<RoadCreateEvent>,
-    mut commands: Commands,
 ) {
     for &RoadBridgeEvent { first, second } in bridge_event.read() {
         if let Ok(first_segment) = segment_query.get(first) {
             if let Ok(second_segment) = segment_query.get(second) {
                 let extended_area = first_segment.area.union(second_segment.area);
                 roads.send(RoadCreateEvent::new(extended_area, first_segment.orientation));
-                commands.entity(first).despawn();
-                commands.entity(second).despawn();
-                rem_event.send(GraphEdgeRemoveEvent(first));
-                rem_event.send(GraphEdgeRemoveEvent(second));
+                destroyer.send(RoadDestroyEvent::new(first));
+                destroyer.send(RoadDestroyEvent::new(second));
             }
         }
     }
