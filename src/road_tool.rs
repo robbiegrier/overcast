@@ -12,17 +12,18 @@ use bevy::prelude::*;
 use std::f32::consts::FRAC_PI_2;
 
 const ROAD_HEIGHT: f32 = 0.05;
-
-pub struct RoadToolPlugin;
+const ROAD_COLOR: Color = Color::linear_rgb(0.01, 0.01, 0.01);
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
-pub enum RoadToolSet {
+pub enum RoadToolRunSet {
     UpdateView,
     UserInput,
     HighLevelSideEffects,
     LowLevelDestruction,
     LowLevelSpawning,
 }
+
+pub struct RoadToolPlugin;
 
 impl Plugin for RoadToolPlugin {
     fn build(&self, app: &mut App) {
@@ -36,11 +37,11 @@ impl Plugin for RoadToolPlugin {
             .configure_sets(
                 Update,
                 (
-                    RoadToolSet::UpdateView,
-                    RoadToolSet::UserInput,
-                    RoadToolSet::HighLevelSideEffects,
-                    RoadToolSet::LowLevelDestruction,
-                    RoadToolSet::LowLevelSpawning,
+                    RoadToolRunSet::UpdateView,
+                    RoadToolRunSet::UserInput,
+                    RoadToolRunSet::HighLevelSideEffects,
+                    RoadToolRunSet::LowLevelDestruction,
+                    RoadToolRunSet::LowLevelSpawning,
                 )
                     .chain()
                     .run_if(in_state(ToolState::Road)),
@@ -48,11 +49,11 @@ impl Plugin for RoadToolPlugin {
             .add_systems(
                 Update,
                 (
-                    (update_ground_position).in_set(RoadToolSet::UserInput),
-                    (adjust_tool_size, change_orientation, handle_action).in_set(RoadToolSet::UserInput),
-                    (split_roads, extend_roads, bridge_roads).in_set(RoadToolSet::HighLevelSideEffects),
-                    (destroy_roads).in_set(RoadToolSet::LowLevelDestruction),
-                    (spawn_roads, spawn_intersections).in_set(RoadToolSet::LowLevelSpawning),
+                    (update_ground_position).in_set(RoadToolRunSet::UpdateView),
+                    (adjust_tool_size, change_orientation, handle_action).in_set(RoadToolRunSet::UserInput),
+                    (split_roads, extend_roads, bridge_roads).in_set(RoadToolRunSet::HighLevelSideEffects),
+                    (destroy_roads).in_set(RoadToolRunSet::LowLevelDestruction),
+                    (spawn_roads, spawn_intersections).in_set(RoadToolRunSet::LowLevelSpawning),
                 ),
             );
     }
@@ -358,13 +359,11 @@ fn spawn_roads(
 ) {
     for &RoadCreateEvent { area, orientation } in road_create_event_reader.read() {
         let size = area.dimensions();
-        let road_color = if orientation == Axis::Z { 0.05 } else { 0.1 };
-
         let entity = commands
             .spawn((
                 PbrBundle {
                     mesh: meshes.add(Cuboid::new(size.x, ROAD_HEIGHT, size.y)),
-                    material: materials.add(Color::linear_rgb(road_color, road_color, road_color)),
+                    material: materials.add(ROAD_COLOR),
                     transform: Transform::from_translation(area.center().with_y(ROAD_HEIGHT / 2.0)),
                     ..default()
                 },
@@ -400,12 +399,11 @@ fn spawn_intersections(
 ) {
     for &IntersectionCreateEvent { area } in intersection_event.read() {
         let size = area.dimensions();
-
         let entity = commands
             .spawn((
                 PbrBundle {
                     mesh: meshes.add(Cuboid::new(size.x, ROAD_HEIGHT, size.y)),
-                    material: materials.add(Color::linear_rgb(0.0, 0.1, 0.3)),
+                    material: materials.add(ROAD_COLOR),
                     transform: Transform::from_translation(area.center().with_y(ROAD_HEIGHT / 2.0)),
                     ..default()
                 },

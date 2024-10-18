@@ -6,6 +6,19 @@ use crate::{
 };
 use bevy::{prelude::*, utils::HashMap};
 
+const GIZMO_HEIGHT: f32 = 0.5;
+const EDGE_GIZMO_SIZE: f32 = 0.25;
+const NODE_GIZMO_SIZE: f32 = 0.75;
+const NODE_COLOR: Color = Color::linear_rgb(1.0, 1.0, 1.0);
+const EDGE_COLOR: Color = Color::linear_rgb(0.0, 0.0, 1.0);
+
+#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
+pub enum GraphRunSet {
+    Mutate,
+    Repair,
+    Visualize,
+}
+
 pub struct GraphPlugin;
 
 impl Plugin for GraphPlugin {
@@ -14,14 +27,22 @@ impl Plugin for GraphPlugin {
             .add_event::<GraphNodeAddEvent>()
             .add_event::<GraphEdgeRemoveEvent>()
             .add_event::<GraphNodeRemoveEvent>()
+            .init_state::<GraphVisualizationState>()
             .add_systems(Startup, spawn_graph)
+            .configure_sets(
+                Update,
+                (GraphRunSet::Mutate, GraphRunSet::Repair, GraphRunSet::Visualize).chain(),
+            )
             .add_systems(
                 Update,
                 (
-                    remove_from_graph,
-                    add_to_graph,
-                    repair_graph.after(remove_from_graph).after(add_to_graph),
-                    visualize_graph.after(repair_graph),
+                    (remove_from_graph, add_to_graph).in_set(GraphRunSet::Mutate),
+                    repair_graph.in_set(GraphRunSet::Repair),
+                    (
+                        toggle_graph_visualization,
+                        visualize_graph.run_if(in_state(GraphVisualizationState::Visualize)),
+                    )
+                        .in_set(GraphRunSet::Visualize),
                 ),
             );
     }
@@ -88,9 +109,7 @@ fn remove_from_graph(
 ) {
     let mut graph = graph_query.single_mut();
 
-    // for each deleted segment, remove it and remove from attached nodes
     for &GraphEdgeRemoveEvent(entity) in edge_remove_event.read() {
-        // println!("the graph detected removed edge: {:?}", entity);
         let edge_entity = graph.edges[&entity];
         if let Ok(edge) = edge_query.get(edge_entity) {
             for endpoint_slot in &edge.endpoints {
@@ -105,9 +124,7 @@ fn remove_from_graph(
         commands.entity(edge_entity).despawn_recursive();
     }
 
-    // for each deleted intersection, remove it and remove from attached edges
     for &GraphNodeRemoveEvent(entity) in node_remove_event.read() {
-        // println!("the graph detected removed node: {:?}", entity);
         let node_entity = graph.nodes[&entity];
         if let Ok(node) = node_query.get(node_entity) {
             for edge_entity in &node.edges {
@@ -137,19 +154,15 @@ fn add_to_graph(
 ) {
     let mut graph = graph_query.single_mut();
 
-    // for each spawned segment, add an edge
     for &GraphEdgeAddEvent(entity) in edge_add_event.read() {
         if let Ok(segment) = segment_query.get(entity) {
-            // println!("the graph detected spawned edge: {:?}", entity);
             let spawn = commands.spawn(GraphEdge::new(segment.drive_length(), segment.area.center())).id();
             graph.edges.insert(entity, spawn);
         }
     }
 
-    // for each spawned intersection, add a node
     for &GraphNodeAddEvent(entity) in node_add_event.read() {
         if let Ok(intersection) = intersection_query.get(entity) {
-            // println!("the graph detected spawned node: {:?}", entity);
             let spawn = commands.spawn(GraphNode::new(intersection.area.center())).id();
             graph.nodes.insert(entity, spawn);
         }
@@ -176,13 +189,10 @@ fn repair_graph(
                 let mut endpoint_polarity = 1;
                 for adjacent_area in segment.area.adjacent_areas() {
                     if let Some(adjacent_entity) = grid.single_entity_in_area(adjacent_area) {
-                        if let Ok(_intersection) = intersection_query.get(adjacent_entity) {
-                            if let Some(node_entity) = graph.nodes.get(&adjacent_entity) {
-                                if let Ok(mut node) = node_query.get_mut(*node_entity) {
-                                    node.edges.push(edge_entity);
-                                    edge.endpoints[endpoint_polarity] = Some(*node_entity);
-                                    // println!("add edge to node");
-                                }
+                        if let Some(node_entity) = graph.nodes.get(&adjacent_entity) {
+                            if let Ok(mut node) = node_query.get_mut(*node_entity) {
+                                node.edges.push(edge_entity);
+                                edge.endpoints[endpoint_polarity] = Some(*node_entity);
                             }
                         }
                     }
@@ -199,12 +209,9 @@ fn repair_graph(
                 let mut endpoint_polarity = 0;
                 for adjacent_area in intersection.area.adjacent_areas() {
                     if let Some(adjacent_entity) = grid.single_entity_in_area(adjacent_area) {
-                        if let Ok(_segment) = segment_query.get(adjacent_entity) {
-                            if let Some(edge_entity) = graph.edges.get(&adjacent_entity) {
-                                if let Ok(mut edge) = edge_query.get_mut(*edge_entity) {
-                                    edge.endpoints[endpoint_polarity] = Some(node_entity);
-                                    // println!("set node {:?} as endpoint of {:?}", node, edge);
-                                }
+                        if let Some(edge_entity) = graph.edges.get(&adjacent_entity) {
+                            if let Ok(mut edge) = edge_query.get_mut(*edge_entity) {
+                                edge.endpoints[endpoint_polarity] = Some(node_entity);
                             }
                         }
                     }
@@ -215,11 +222,27 @@ fn repair_graph(
     }
 }
 
-const GIZMO_HEIGHT: f32 = 0.5;
-const EDGE_GIZMO_SIZE: f32 = 0.25;
-const NODE_GIZMO_SIZE: f32 = 0.75;
-const NODE_COLOR: Color = Color::linear_rgb(1.0, 1.0, 1.0);
-const EDGE_COLOR: Color = Color::linear_rgb(0.0, 0.0, 1.0);
+#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum GraphVisualizationState {
+    #[default]
+    Visualize,
+    Hide,
+}
+
+fn toggle_graph_visualization(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut next_state: ResMut<NextState<GraphVisualizationState>>,
+    state: Res<State<GraphVisualizationState>>,
+) {
+    if keyboard.just_pressed(KeyCode::KeyH) {
+        next_state.set({
+            match state.get() {
+                GraphVisualizationState::Hide => GraphVisualizationState::Visualize,
+                GraphVisualizationState::Visualize => GraphVisualizationState::Hide,
+            }
+        });
+    }
+}
 
 fn visualize_graph(
     ground_query: Query<&GlobalTransform, With<Ground>>,
@@ -249,7 +272,6 @@ fn visualize_graph(
 
     for node in &node_query {
         let pos = node.location + ground.up() * GIZMO_HEIGHT;
-        // gizmos.rect(pos, ground.up(), NODE_GIZMO_SIZE, NODE_COLOR);
         gizmos.rounded_rect(
             pos,
             Quat::from_rotation_x(std::f32::consts::FRAC_PI_2),
