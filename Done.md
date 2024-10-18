@@ -12,3 +12,7 @@
 - model connections between intersections and road segments
 - weighted edges based on segment length
 - update on road segment edits
+
+### buildings attached to roads
+- segments in graph connected to adjacent buildings
+- update on building and road edits

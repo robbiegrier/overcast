@@ -6,6 +6,7 @@ use crate::{
     road_segment::RoadSegment,
     road_tool::Intersection,
 };
+use bevy::reflect::Map;
 use bevy::{prelude::*, utils::hashbrown::HashMap};
 
 const GIZMO_HEIGHT: f32 = 0.5;
@@ -134,37 +135,39 @@ fn remove_from_graph(
     let mut graph = graph_query.single_mut();
 
     for &GraphEdgeRemoveEvent(entity) in edge_remove_event.read() {
-        let edge_entity = graph.edges[&entity];
-        if let Ok(edge) = edge_query.get(edge_entity) {
-            for endpoint_slot in &edge.endpoints {
-                if let Some(endpoint) = endpoint_slot {
-                    if let Ok(mut node) = node_query.get_mut(*endpoint) {
-                        node.edges.retain(|x| *x != entity);
+        if let Some(edge_entity) = graph.edges.get(&entity) {
+            if let Ok(edge) = edge_query.get(*edge_entity) {
+                for endpoint_slot in &edge.endpoints {
+                    if let Some(endpoint) = endpoint_slot {
+                        if let Ok(mut node) = node_query.get_mut(*endpoint) {
+                            node.edges.retain(|x| *x != entity);
+                        }
                     }
                 }
             }
+            commands.entity(*edge_entity).despawn_recursive();
         }
         graph.edges.remove(&entity);
-        commands.entity(edge_entity).despawn_recursive();
     }
 
     for &GraphNodeRemoveEvent(entity) in node_remove_event.read() {
-        let node_entity = graph.nodes[&entity];
-        if let Ok(node) = node_query.get(node_entity) {
-            for edge_entity in &node.edges {
-                if let Ok(mut edge) = edge_query.get_mut(*edge_entity) {
-                    for endpoint_slot in &mut edge.endpoints {
-                        if let Some(endpoint) = endpoint_slot {
-                            if *endpoint == entity {
-                                *endpoint_slot = None;
+        if let Some(node_entity) = graph.nodes.get(&entity) {
+            if let Ok(node) = node_query.get(*node_entity) {
+                for edge_entity in &node.edges {
+                    if let Ok(mut edge) = edge_query.get_mut(*edge_entity) {
+                        for endpoint_slot in &mut edge.endpoints {
+                            if let Some(endpoint) = endpoint_slot {
+                                if *endpoint == entity {
+                                    *endpoint_slot = None;
+                                }
                             }
                         }
                     }
                 }
             }
+            commands.entity(*node_entity).despawn_recursive();
         }
         graph.edges.remove(&entity);
-        commands.entity(node_entity).despawn_recursive();
     }
 }
 
@@ -230,27 +233,28 @@ fn repair_graph(
     let grid = grid_query.single();
 
     for &GraphEdgeRepairEvent(entity) in edge_event.read() {
-        let edge_entity = graph.edges[&entity];
-        if let Ok(mut edge) = edge_query.get_mut(edge_entity) {
-            if let Ok(segment) = segment_query.get(entity) {
-                let mut endpoint_polarity = 1;
-                for adjacent_area in segment.area.adjacent_areas() {
-                    if let Some(adjacent_entity) = grid.single_entity_in_area(adjacent_area) {
-                        if let Some(node_entity) = graph.nodes.get(&adjacent_entity) {
-                            if let Ok(mut node) = node_query.get_mut(*node_entity) {
-                                node.edges.push(edge_entity);
-                                edge.endpoints[endpoint_polarity] = Some(*node_entity);
+        if let Some(edge_entity) = graph.edges.get(&entity) {
+            if let Ok(mut edge) = edge_query.get_mut(*edge_entity) {
+                if let Ok(segment) = segment_query.get(entity) {
+                    let mut endpoint_polarity = 1;
+                    for adjacent_area in segment.area.adjacent_areas() {
+                        if let Some(adjacent_entity) = grid.single_entity_in_area(adjacent_area) {
+                            if let Some(node_entity) = graph.nodes.get(&adjacent_entity) {
+                                if let Ok(mut node) = node_query.get_mut(*node_entity) {
+                                    node.edges.push(*edge_entity);
+                                    edge.endpoints[endpoint_polarity] = Some(*node_entity);
+                                }
                             }
                         }
-                    }
-                    endpoint_polarity = (endpoint_polarity + 1) % 2;
+                        endpoint_polarity = (endpoint_polarity + 1) % 2;
 
-                    for cell in adjacent_area.iter() {
-                        if let Ok(entity_slot) = grid.entity_at(cell) {
-                            if let Some(adjacent_entity) = entity_slot {
-                                if building_query.contains(adjacent_entity) {
-                                    let destination_entity = graph.destinations[&adjacent_entity];
-                                    edge.destinations.push(destination_entity);
+                        for cell in adjacent_area.iter() {
+                            if let Ok(entity_slot) = grid.entity_at(cell) {
+                                if let Some(adjacent_entity) = entity_slot {
+                                    if building_query.contains(adjacent_entity) {
+                                        let destination_entity = graph.destinations[&adjacent_entity];
+                                        edge.destinations.push(destination_entity);
+                                    }
                                 }
                             }
                         }
@@ -261,32 +265,34 @@ fn repair_graph(
     }
 
     for &GraphNodeRepairEvent(entity) in node_event.read() {
-        let node_entity = graph.nodes[&entity];
-        if let Ok(_node) = node_query.get(node_entity) {
-            if let Ok(intersection) = intersection_query.get(entity) {
-                let mut endpoint_polarity = 0;
-                for adjacent_area in intersection.area.adjacent_areas() {
-                    if let Some(adjacent_entity) = grid.single_entity_in_area(adjacent_area) {
-                        if let Some(edge_entity) = graph.edges.get(&adjacent_entity) {
-                            if let Ok(mut edge) = edge_query.get_mut(*edge_entity) {
-                                edge.endpoints[endpoint_polarity] = Some(node_entity);
+        if let Some(node_entity) = graph.nodes.get(&entity) {
+            if let Ok(_node) = node_query.get(*node_entity) {
+                if let Ok(intersection) = intersection_query.get(entity) {
+                    let mut endpoint_polarity = 0;
+                    for adjacent_area in intersection.area.adjacent_areas() {
+                        if let Some(adjacent_entity) = grid.single_entity_in_area(adjacent_area) {
+                            if let Some(edge_entity) = graph.edges.get(&adjacent_entity) {
+                                if let Ok(mut edge) = edge_query.get_mut(*edge_entity) {
+                                    edge.endpoints[endpoint_polarity] = Some(*node_entity);
+                                }
                             }
                         }
+                        endpoint_polarity = (endpoint_polarity + 1) % 2;
                     }
-                    endpoint_polarity = (endpoint_polarity + 1) % 2;
                 }
             }
         }
     }
 
     for &GraphDestinationRepairEvent(entity) in destination_event.read() {
-        let destination_entity = graph.destinations[&entity];
-        if let Ok(building) = building_query.get(entity) {
-            for adjacent_area in building.area.adjacent_areas() {
-                if let Some(adjacent_entity) = grid.single_entity_in_area(adjacent_area) {
-                    if let Some(edge_entity) = graph.edges.get(&adjacent_entity) {
-                        if let Ok(mut edge) = edge_query.get_mut(*edge_entity) {
-                            edge.destinations.push(destination_entity);
+        if let Some(destination_entity) = graph.destinations.get(&entity) {
+            if let Ok(building) = building_query.get(entity) {
+                for adjacent_area in building.area.adjacent_areas() {
+                    if let Some(adjacent_entity) = grid.single_entity_in_area(adjacent_area) {
+                        if let Some(edge_entity) = graph.edges.get(&adjacent_entity) {
+                            if let Ok(mut edge) = edge_query.get_mut(*edge_entity) {
+                                edge.destinations.push(*destination_entity);
+                            }
                         }
                     }
                 }

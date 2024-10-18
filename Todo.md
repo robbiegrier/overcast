@@ -1,15 +1,6 @@
 
 ## Todo
 
-### buildings attached to roads
-- segments in graph connected to adjacent buildings
-- update on building and road edits
-
-### High level schedule
-- avoid race conditions
-- tool updates and spawning
-- then update graph
-
 ### search algorithm
 - return path from one building to another using the roadmap
 
