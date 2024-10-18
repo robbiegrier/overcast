@@ -1,16 +1,19 @@
+use crate::road_tool::Axis;
 use crate::{
+    building_tool::Building,
     graph_events::*,
     grid::{Grid, Ground},
     road_segment::RoadSegment,
     road_tool::Intersection,
 };
-use bevy::{prelude::*, utils::HashMap};
+use bevy::{prelude::*, utils::hashbrown::HashMap};
 
 const GIZMO_HEIGHT: f32 = 0.5;
 const EDGE_GIZMO_SIZE: f32 = 0.25;
 const NODE_GIZMO_SIZE: f32 = 0.75;
 const NODE_COLOR: Color = Color::linear_rgb(1.0, 1.0, 1.0);
-const EDGE_COLOR: Color = Color::linear_rgb(0.0, 0.0, 1.0);
+const EDGE_COLOR: Color = Color::linear_rgb(0.1, 0.1, 1.0);
+const DESTINATION_COLOR: Color = Color::linear_rgb(1.0, 1.0, 0.3);
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
 pub enum GraphRunSet {
@@ -25,8 +28,12 @@ impl Plugin for GraphPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<GraphEdgeAddEvent>()
             .add_event::<GraphNodeAddEvent>()
+            .add_event::<GraphDestinationAddEvent>()
             .add_event::<GraphEdgeRemoveEvent>()
             .add_event::<GraphNodeRemoveEvent>()
+            .add_event::<GraphNodeRepairEvent>()
+            .add_event::<GraphEdgeRepairEvent>()
+            .add_event::<GraphDestinationRepairEvent>()
             .init_state::<GraphVisualizationState>()
             .add_systems(Startup, spawn_graph)
             .configure_sets(
@@ -52,6 +59,7 @@ impl Plugin for GraphPlugin {
 pub struct Graph {
     nodes: HashMap<Entity, Entity>,
     edges: HashMap<Entity, Entity>,
+    destinations: HashMap<Entity, Entity>,
 }
 
 impl Graph {
@@ -59,6 +67,7 @@ impl Graph {
         Self {
             nodes: HashMap::new(),
             edges: HashMap::new(),
+            destinations: HashMap::new(),
         }
     }
 }
@@ -79,18 +88,33 @@ impl GraphNode {
 }
 
 #[derive(Component, Debug)]
+pub struct GraphDestination {
+    pub location: Vec3,
+}
+
+impl GraphDestination {
+    fn new(location: Vec3) -> Self {
+        Self { location }
+    }
+}
+
+#[derive(Component, Debug)]
 pub struct GraphEdge {
     pub endpoints: [Option<Entity>; 2],
     pub weight: i32,
     pub location: Vec3,
+    pub orientation: Axis,
+    pub destinations: Vec<Entity>,
 }
 
 impl GraphEdge {
-    fn new(weight: i32, location: Vec3) -> Self {
+    fn new(weight: i32, location: Vec3, orientation: Axis) -> Self {
         Self {
             endpoints: [None, None],
             weight,
             location,
+            orientation,
+            destinations: Vec::new(),
         }
     }
 }
@@ -148,16 +172,28 @@ fn add_to_graph(
     mut commands: Commands,
     mut edge_add_event: EventReader<GraphEdgeAddEvent>,
     mut node_add_event: EventReader<GraphNodeAddEvent>,
+    mut destination_add_event: EventReader<GraphDestinationAddEvent>,
     mut graph_query: Query<&mut Graph>,
     segment_query: Query<&RoadSegment>,
     intersection_query: Query<&Intersection>,
+    building_query: Query<&Building>,
+    mut repair_edges: EventWriter<GraphEdgeRepairEvent>,
+    mut repair_nodes: EventWriter<GraphNodeRepairEvent>,
+    mut repair_destinations: EventWriter<GraphDestinationRepairEvent>,
 ) {
     let mut graph = graph_query.single_mut();
 
     for &GraphEdgeAddEvent(entity) in edge_add_event.read() {
         if let Ok(segment) = segment_query.get(entity) {
-            let spawn = commands.spawn(GraphEdge::new(segment.drive_length(), segment.area.center())).id();
+            let spawn = commands
+                .spawn(GraphEdge::new(
+                    segment.drive_length(),
+                    segment.area.center(),
+                    segment.orientation,
+                ))
+                .id();
             graph.edges.insert(entity, spawn);
+            repair_edges.send(GraphEdgeRepairEvent(entity));
         }
     }
 
@@ -165,24 +201,35 @@ fn add_to_graph(
         if let Ok(intersection) = intersection_query.get(entity) {
             let spawn = commands.spawn(GraphNode::new(intersection.area.center())).id();
             graph.nodes.insert(entity, spawn);
+            repair_nodes.send(GraphNodeRepairEvent(entity));
+        }
+    }
+
+    for &GraphDestinationAddEvent(entity) in destination_add_event.read() {
+        if let Ok(building) = building_query.get(entity) {
+            let spawn = commands.spawn(GraphDestination::new(building.area.center())).id();
+            graph.destinations.insert(entity, spawn);
+            repair_destinations.send(GraphDestinationRepairEvent(entity));
         }
     }
 }
 
 fn repair_graph(
-    mut edge_add_event: EventReader<GraphEdgeAddEvent>,
-    mut node_add_event: EventReader<GraphNodeAddEvent>,
+    mut edge_event: EventReader<GraphEdgeRepairEvent>,
+    mut node_event: EventReader<GraphNodeRepairEvent>,
+    mut destination_event: EventReader<GraphDestinationRepairEvent>,
     graph_query: Query<&Graph>,
     grid_query: Query<&Grid>,
     segment_query: Query<&RoadSegment>,
     intersection_query: Query<&Intersection>,
+    building_query: Query<&Building>,
     mut edge_query: Query<&mut GraphEdge>,
     mut node_query: Query<&mut GraphNode>,
 ) {
     let graph = graph_query.single();
     let grid = grid_query.single();
 
-    for &GraphEdgeAddEvent(entity) in edge_add_event.read() {
+    for &GraphEdgeRepairEvent(entity) in edge_event.read() {
         let edge_entity = graph.edges[&entity];
         if let Ok(mut edge) = edge_query.get_mut(edge_entity) {
             if let Ok(segment) = segment_query.get(entity) {
@@ -197,12 +244,23 @@ fn repair_graph(
                         }
                     }
                     endpoint_polarity = (endpoint_polarity + 1) % 2;
+
+                    for cell in adjacent_area.iter() {
+                        if let Ok(entity_slot) = grid.entity_at(cell) {
+                            if let Some(adjacent_entity) = entity_slot {
+                                if building_query.contains(adjacent_entity) {
+                                    let destination_entity = graph.destinations[&adjacent_entity];
+                                    edge.destinations.push(destination_entity);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
-    for &GraphNodeAddEvent(entity) in node_add_event.read() {
+    for &GraphNodeRepairEvent(entity) in node_event.read() {
         let node_entity = graph.nodes[&entity];
         if let Ok(_node) = node_query.get(node_entity) {
             if let Ok(intersection) = intersection_query.get(entity) {
@@ -216,6 +274,21 @@ fn repair_graph(
                         }
                     }
                     endpoint_polarity = (endpoint_polarity + 1) % 2;
+                }
+            }
+        }
+    }
+
+    for &GraphDestinationRepairEvent(entity) in destination_event.read() {
+        let destination_entity = graph.destinations[&entity];
+        if let Ok(building) = building_query.get(entity) {
+            for adjacent_area in building.area.adjacent_areas() {
+                if let Some(adjacent_entity) = grid.single_entity_in_area(adjacent_area) {
+                    if let Some(edge_entity) = graph.edges.get(&adjacent_entity) {
+                        if let Ok(mut edge) = edge_query.get_mut(*edge_entity) {
+                            edge.destinations.push(destination_entity);
+                        }
+                    }
                 }
             }
         }
@@ -249,6 +322,7 @@ fn visualize_graph(
     mut gizmos: Gizmos,
     edge_query: Query<(Entity, &GraphEdge)>,
     node_query: Query<&GraphNode>,
+    destination_query: Query<&GraphDestination>,
 ) {
     let ground = ground_query.single();
 
@@ -266,6 +340,18 @@ fn visualize_graph(
                         gizmos.line_gradient(start, end, NODE_COLOR, EDGE_COLOR);
                     }
                 }
+            }
+        }
+
+        for destination_entity in &edge.destinations {
+            if let Ok(destination) = destination_query.get(*destination_entity) {
+                let center = destination.location;
+                let end = match edge.orientation {
+                    Axis::X => gizmo_pos.with_x(center.x),
+                    Axis::Z => gizmo_pos.with_z(center.z),
+                };
+                let building_gizmo_pos = center + ground.up() * GIZMO_HEIGHT;
+                gizmos.line_gradient(building_gizmo_pos, end, DESTINATION_COLOR, EDGE_COLOR);
             }
         }
     }

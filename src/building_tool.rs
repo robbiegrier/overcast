@@ -1,5 +1,6 @@
 use crate::{
     camera::PlayerCameraController,
+    graph_events::GraphDestinationAddEvent,
     grid::{Grid, Ground},
     grid_area::GridArea,
     toolbar::ToolState,
@@ -23,7 +24,15 @@ impl Plugin for BuildingToolPlugin {
 }
 
 #[derive(Component, Debug)]
-pub struct Building;
+pub struct Building {
+    pub area: GridArea,
+}
+
+impl Building {
+    pub fn new(area: GridArea) -> Self {
+        Self { area }
+    }
+}
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 enum BuildingToolMode {
@@ -165,13 +174,14 @@ fn handle_tool_action(
     keyboard: Res<ButtonInput<KeyCode>>,
     meshes: ResMut<Assets<Mesh>>,
     materials: ResMut<Assets<StandardMaterial>>,
+    graph_event: EventWriter<GraphDestinationAddEvent>,
 ) {
     let tool = query.single();
     let mut grid = grid_query.single_mut();
 
     if mouse.just_pressed(MouseButton::Left) && !keyboard.any_pressed([KeyCode::AltLeft, KeyCode::ControlLeft]) {
         match tool.mode {
-            BuildingToolMode::Spawner => place_building(commands, tool, &mut grid, meshes, materials),
+            BuildingToolMode::Spawner => place_building(commands, tool, &mut grid, meshes, materials, graph_event),
             BuildingToolMode::Eraser => erase_building(commands, tool, &mut grid),
         }
     }
@@ -183,12 +193,13 @@ fn place_building(
     grid: &mut Grid,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut graph_event: EventWriter<GraphDestinationAddEvent>,
 ) {
     let area = GridArea::at(tool.ground_position, tool.dimensions.x, tool.dimensions.y);
 
-    let rheight = rand::thread_rng().gen_range(1.0..5.0);
-    let rgray = rand::thread_rng().gen_range(0.1..0.5);
-    let alley_width = 0.3;
+    let rheight = rand::thread_rng().gen_range(0.5..6.0);
+    let rgray = rand::thread_rng().gen_range(0.05..0.25);
+    let alley_width = 0.5;
 
     if grid.is_valid_paint_area(area) {
         let size = area.dimensions();
@@ -200,11 +211,13 @@ fn place_building(
                     transform: Transform::from_translation(area.center().with_y(rheight / 2.0)),
                     ..default()
                 },
-                Building,
+                Building::new(area),
             ))
             .id();
 
         grid.mark_area_occupied(area, entity);
+
+        graph_event.send(GraphDestinationAddEvent(entity));
     }
 }
 
