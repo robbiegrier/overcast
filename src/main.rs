@@ -9,6 +9,7 @@ mod road_events;
 mod road_segment;
 mod road_tool;
 mod toolbar;
+mod vehicle;
 mod weather;
 
 use bevy::prelude::*;
@@ -19,6 +20,7 @@ fn main() {
         .add_plugins(camera::CameraPlugin)
         .add_plugins(grid::GridPlugin)
         .add_plugins(graph::GraphPlugin)
+        .add_plugins(vehicle::VehiclePlugin)
         .add_plugins(toolbar::ToolbarPlugin)
         .add_plugins(weather::WeatherPlugin)
         .run();

@@ -58,9 +58,9 @@ impl Plugin for GraphPlugin {
 
 #[derive(Component, Debug)]
 pub struct Graph {
-    nodes: HashMap<Entity, Entity>,
-    edges: HashMap<Entity, Entity>,
-    destinations: HashMap<Entity, Entity>,
+    pub nodes: HashMap<Entity, Entity>,
+    pub edges: HashMap<Entity, Entity>,
+    pub destinations: HashMap<Entity, Entity>,
 }
 
 impl Graph {
@@ -91,11 +91,17 @@ impl GraphNode {
 #[derive(Component, Debug)]
 pub struct GraphDestination {
     pub location: Vec3,
+    pub edges: Vec<Entity>,
+    pub object: Entity,
 }
 
 impl GraphDestination {
-    fn new(location: Vec3) -> Self {
-        Self { location }
+    fn new(location: Vec3, object: Entity) -> Self {
+        Self {
+            location,
+            edges: Vec::new(),
+            object,
+        }
     }
 }
 
@@ -131,6 +137,7 @@ fn remove_from_graph(
     mut graph_query: Query<&mut Graph>,
     mut edge_query: Query<&mut GraphEdge>,
     mut node_query: Query<&mut GraphNode>,
+    mut destination_query: Query<&mut GraphDestination>,
 ) {
     let mut graph = graph_query.single_mut();
 
@@ -142,6 +149,12 @@ fn remove_from_graph(
                         if let Ok(mut node) = node_query.get_mut(*endpoint) {
                             node.edges.retain(|x| *x != entity);
                         }
+                    }
+                }
+
+                for destination_entity in &edge.destinations {
+                    if let Ok(mut destination) = destination_query.get_mut(*destination_entity) {
+                        destination.edges.retain(|x| *x != entity);
                     }
                 }
             }
@@ -210,7 +223,7 @@ fn add_to_graph(
 
     for &GraphDestinationAddEvent(entity) in destination_add_event.read() {
         if let Ok(building) = building_query.get(entity) {
-            let spawn = commands.spawn(GraphDestination::new(building.area.center())).id();
+            let spawn = commands.spawn(GraphDestination::new(building.area.center(), entity)).id();
             graph.destinations.insert(entity, spawn);
             repair_destinations.send(GraphDestinationRepairEvent(entity));
         }
@@ -228,6 +241,7 @@ fn repair_graph(
     building_query: Query<&Building>,
     mut edge_query: Query<&mut GraphEdge>,
     mut node_query: Query<&mut GraphNode>,
+    mut destination_query: Query<&mut GraphDestination>,
 ) {
     let graph = graph_query.single();
     let grid = grid_query.single();
@@ -256,9 +270,11 @@ fn repair_graph(
                             if let Ok(entity_slot) = grid.entity_at(cell);
                             if let Some(adjacent_entity) = entity_slot;
                             if building_query.contains(adjacent_entity);
+                            if let Some(destination_entity) = graph.destinations.get(&adjacent_entity);
+                            if let Ok(mut destination) = destination_query.get_mut(*destination_entity);
                             then {
-                                let destination_entity = graph.destinations[&adjacent_entity];
-                                edge.destinations.push(destination_entity);
+                                edge.destinations.push(*destination_entity);
+                                destination.edges.push(*edge_entity);
                             }
                         }
                     }
@@ -297,7 +313,11 @@ fn repair_graph(
                         if let Some(adjacent_entity) = grid.single_entity_in_area(adjacent_area);
                         if let Some(edge_entity) = graph.edges.get(&adjacent_entity);
                         if let Ok(mut edge) = edge_query.get_mut(*edge_entity);
-                        then { edge.destinations.push(*destination_entity); }
+                        if let Ok(mut destination) = destination_query.get_mut(*destination_entity);
+                        then {
+                            edge.destinations.push(*destination_entity);
+                            destination.edges.push(*edge_entity);
+                        }
                     }
                 }
             }
@@ -355,13 +375,15 @@ fn visualize_graph(
 
         for destination_entity in &edge.destinations {
             if let Ok(destination) = destination_query.get(*destination_entity) {
-                let center = destination.location;
-                let end = match edge.orientation {
-                    Axis::X => gizmo_pos.with_x(center.x),
-                    Axis::Z => gizmo_pos.with_z(center.z),
-                };
-                let building_gizmo_pos = center + ground.up() * GIZMO_HEIGHT;
-                gizmos.line_gradient(building_gizmo_pos, end, DESTINATION_COLOR, EDGE_COLOR);
+                if destination.edges.contains(&entity) {
+                    let center = destination.location;
+                    let end = match edge.orientation {
+                        Axis::X => gizmo_pos.with_x(center.x),
+                        Axis::Z => gizmo_pos.with_z(center.z),
+                    };
+                    let building_gizmo_pos = center + ground.up() * GIZMO_HEIGHT;
+                    gizmos.line_gradient(building_gizmo_pos, end, DESTINATION_COLOR, EDGE_COLOR);
+                }
             }
         }
     }
