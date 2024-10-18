@@ -1,15 +1,6 @@
 
 ## Todo
 
-### search algorithm
-- return path from one building to another using the roadmap
-
-### road placement - detect sides
-- attach road to existing roads along the length of the placed road
-
-### basic ui
-- buttons and text for keybinds to change modes and toggle visualizations
-
 ### vehicle ai
 - spawn at random building
 - calculate path to random destination building
@@ -18,6 +9,12 @@
 - on intersections, straight, turn, or uturn for desired new road segment
     - passing cars just go through each other
 - on final segment, delete when adjacent to destination building
+
+### road placement - detect sides
+- attach road to existing roads along the length of the placed road
+
+### basic ui
+- buttons and text for keybinds to change modes and toggle visualizations
 
 ### speed limiter
 - detect vehicle in front
@@ -50,3 +47,6 @@
 
 ### skybox
 - add skybox to make it look nicer
+
+### better pathfinding
+- use a better algorithm to get a realistic path

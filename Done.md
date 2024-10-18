@@ -16,3 +16,6 @@
 ### buildings attached to roads
 - segments in graph connected to adjacent buildings
 - update on building and road edits
+
+### search algorithm
+- return path from one building to another using the roadmap
