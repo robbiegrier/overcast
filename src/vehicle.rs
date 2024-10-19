@@ -1,13 +1,12 @@
 use crate::{
     building_tool::Building,
     graph::{GraphDestination, GraphEdge, GraphNode},
-    road_segment::{self, RoadSegment},
+    road_segment::RoadSegment,
     road_tool::{self, Axis, Intersection},
 };
 use bevy::{
-    gizmos::arcs::{Arc2dBuilder, Arc3dBuilder},
     prelude::*,
-    utils::{hashbrown::HashSet, HashMap},
+    utils::{HashMap, HashSet},
 };
 use if_chain::if_chain;
 use rand::seq::IteratorRandom;
@@ -276,8 +275,11 @@ fn spawn_vehicle(
                     path_found = true;
                     break;
                 }
-                frontier.push(dest.edges[0]);
-                parent_map.insert(dest.edges[0], curr);
+
+                if !dest.edges.is_empty() {
+                    frontier.push(dest.edges[0]);
+                    parent_map.insert(dest.edges[0], curr);
+                }
             }
             // if curr is edge
             else if let Ok((_e, edge)) = edge_query.get(curr) {
