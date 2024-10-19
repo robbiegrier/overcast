@@ -11,7 +11,7 @@ use crate::{
 use bevy::prelude::*;
 use std::f32::consts::FRAC_PI_2;
 
-const ROAD_HEIGHT: f32 = 0.05;
+pub const ROAD_HEIGHT: f32 = 0.05;
 const ROAD_COLOR: Color = Color::linear_rgb(0.01, 0.01, 0.01);
 
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]

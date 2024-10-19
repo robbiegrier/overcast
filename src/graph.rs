@@ -77,13 +77,15 @@ impl Graph {
 pub struct GraphNode {
     pub edges: Vec<Entity>,
     pub location: Vec3,
+    pub object: Entity,
 }
 
 impl GraphNode {
-    fn new(location: Vec3) -> Self {
+    fn new(location: Vec3, object: Entity) -> Self {
         Self {
             edges: Vec::new(),
             location,
+            object,
         }
     }
 }
@@ -112,16 +114,18 @@ pub struct GraphEdge {
     pub location: Vec3,
     pub orientation: Axis,
     pub destinations: Vec<Entity>,
+    pub object: Entity,
 }
 
 impl GraphEdge {
-    fn new(weight: i32, location: Vec3, orientation: Axis) -> Self {
+    fn new(weight: i32, location: Vec3, orientation: Axis, object: Entity) -> Self {
         Self {
             endpoints: [None, None],
             weight,
             location,
             orientation,
             destinations: Vec::new(),
+            object,
         }
     }
 }
@@ -206,6 +210,7 @@ fn add_to_graph(
                     segment.drive_length(),
                     segment.area.center(),
                     segment.orientation,
+                    entity,
                 ))
                 .id();
             graph.edges.insert(entity, spawn);
@@ -215,7 +220,7 @@ fn add_to_graph(
 
     for &GraphNodeAddEvent(entity) in node_add_event.read() {
         if let Ok(intersection) = intersection_query.get(entity) {
-            let spawn = commands.spawn(GraphNode::new(intersection.area.center())).id();
+            let spawn = commands.spawn(GraphNode::new(intersection.area.center(), entity)).id();
             graph.nodes.insert(entity, spawn);
             repair_nodes.send(GraphNodeRepairEvent(entity));
         }

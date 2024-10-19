@@ -40,4 +40,20 @@ impl RoadSegment {
             ),
         }
     }
+
+    pub fn get_lane_pos(&self, start_pos: Vec3) -> Vec3 {
+        match self.orientation {
+            Axis::Z => start_pos.with_x(self.area.center().x),
+            Axis::X => start_pos.with_z(self.area.center().z),
+        }
+
+        // match self.orientation {
+        //     Axis::Z => {
+        //         self.area.center().with_z(start_pos.z) + Vec3::new(direction * (self.area.dimensions().x / 2.0), 0.0, 0.0)
+        //     }
+        //     Axis::X => {
+        //         self.area.center().with_x(start_pos.x) + Vec3::new(0.0, 0.0, direction * (self.area.dimensions().y / 2.0))
+        //     }
+        // }
+    }
 }
