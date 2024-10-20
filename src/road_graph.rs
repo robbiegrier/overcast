@@ -4,6 +4,13 @@ use crate::{
 };
 use bevy::prelude::*;
 
+#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum GraphVisualizationState {
+    #[default]
+    Visualize,
+    Hide,
+}
+
 pub struct RoadGraphPlugin;
 
 impl Plugin for RoadGraphPlugin {
@@ -23,13 +30,6 @@ impl Plugin for RoadGraphPlugin {
                 ),
             );
     }
-}
-
-#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
-pub enum GraphVisualizationState {
-    #[default]
-    Visualize,
-    Hide,
 }
 
 pub fn add_roads_to_graph(
@@ -110,6 +110,16 @@ pub fn add_buildings_to_graph(
     }
 }
 
+const VIZ_Y: f32 = 1.0;
+const CONNECT_COLOR: Color = Color::linear_rgb(1.0, 1.0, 1.0);
+const SEGMENT_COLOR: Color = Color::linear_rgb(0.0, 0.0, 1.0);
+const INTER_COLOR: Color = Color::linear_rgb(1.0, 1.0, 0.0);
+const BUILDING_COLOR: Color = Color::linear_rgb(0.0, 1.0, 1.0);
+const CONNECT_RADIUS: f32 = 0.1;
+const SEGMENT_RADIUS: f32 = 0.2;
+const INTER_RADIUS: f32 = 0.4;
+const BUILDING_RADIUS: f32 = 0.3;
+
 fn toggle_graph_visualization(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut next_state: ResMut<NextState<GraphVisualizationState>>,
@@ -124,16 +134,6 @@ fn toggle_graph_visualization(
         });
     }
 }
-
-const VIZ_Y: f32 = 1.0;
-const CONNECT_COLOR: Color = Color::linear_rgb(1.0, 1.0, 1.0);
-const SEGMENT_COLOR: Color = Color::linear_rgb(0.0, 0.0, 1.0);
-const INTER_COLOR: Color = Color::linear_rgb(1.0, 1.0, 0.0);
-const BUILDING_COLOR: Color = Color::linear_rgb(0.0, 1.0, 1.0);
-const CONNECT_RADIUS: f32 = 0.1;
-const SEGMENT_RADIUS: f32 = 0.2;
-const INTER_RADIUS: f32 = 0.4;
-const BUILDING_RADIUS: f32 = 0.3;
 
 pub fn visualize_segments(
     segment_query: Query<&RoadSegment>,

@@ -1,8 +1,7 @@
 use crate::{
     building_tool::Building,
-    graph::{GraphDestination, GraphEdge, GraphNode},
     intersection::Intersection,
-    orientation::{Axis, Direction},
+    orientation::{GAxis, GDir},
     road_segment::RoadSegment,
     road_tool::ROAD_HEIGHT,
 };
@@ -49,7 +48,7 @@ enum StepType {
     Building,
 }
 
-fn get_step_type(step_entity: Entity, dest_query: &Query<&GraphDestination>, edge_query: &Query<&GraphEdge>) -> StepType {
+fn get_step_type(step_entity: Entity, dest_query: &Query<&Building>, edge_query: &Query<&RoadSegment>) -> StepType {
     if edge_query.contains(step_entity) {
         StepType::Road
     } else if dest_query.contains(step_entity) {
@@ -59,43 +58,43 @@ fn get_step_type(step_entity: Entity, dest_query: &Query<&GraphDestination>, edg
     }
 }
 
-fn direction_to_intersection(segment: &RoadSegment, intersection: &Intersection) -> Direction {
+fn direction_to_intersection(segment: &RoadSegment, intersection: &Intersection) -> GDir {
     match segment.orientation {
-        Axis::Z => {
+        GAxis::Z => {
             if intersection.area.center().z > segment.area.center().z {
-                Direction::North
+                GDir::North
             } else {
-                Direction::South
+                GDir::South
             }
         }
-        Axis::X => {
+        GAxis::X => {
             if intersection.area.center().x > segment.area.center().x {
-                Direction::West
+                GDir::West
             } else {
-                Direction::East
+                GDir::East
             }
         }
     }
 }
 
-fn get_intersection_stopping_pos(intersection: &Intersection, direction: Direction, start_pos: Vec3) -> Vec3 {
+fn get_intersection_stopping_pos(intersection: &Intersection, direction: GDir, start_pos: Vec3) -> Vec3 {
     match direction {
-        Direction::North => {
+        GDir::North => {
             let offset =
                 intersection.area.center() + Vec3::new(0.0, 0.0, (intersection.area.dimensions().y + VEHICLE_LENGTH) / 2.0);
             start_pos.with_z(offset.z)
         }
-        Direction::South => {
+        GDir::South => {
             let offset =
                 intersection.area.center() + Vec3::new(0.0, 0.0, -(intersection.area.dimensions().y + VEHICLE_LENGTH) / 2.0);
             start_pos.with_z(offset.z)
         }
-        Direction::East => {
+        GDir::East => {
             let offset =
                 intersection.area.center() + Vec3::new(-(intersection.area.dimensions().y + VEHICLE_LENGTH) / 2.0, 0.0, 0.0);
             start_pos.with_x(offset.x)
         }
-        Direction::West => {
+        GDir::West => {
             let offset =
                 intersection.area.center() + Vec3::new((intersection.area.dimensions().y + VEHICLE_LENGTH) / 2.0, 0.0, 0.0);
             start_pos.with_x(offset.x)
@@ -105,17 +104,14 @@ fn get_intersection_stopping_pos(intersection: &Intersection, direction: Directi
 
 fn get_building_stopping_pos(building: &Building, segment: &RoadSegment, start_pos: Vec3) -> Vec3 {
     match segment.orientation {
-        Axis::Z => start_pos.with_z(building.area.center().z),
-        Axis::X => start_pos.with_x(building.area.center().x),
+        GAxis::Z => start_pos.with_z(building.area.center().z),
+        GAxis::X => start_pos.with_x(building.area.center().x),
     }
 }
 
 fn update_vehicles(
     mut commands: Commands,
     mut vehicle_query: Query<(Entity, &mut Vehicle, &mut Transform)>,
-    dest_query: Query<&GraphDestination>,
-    edge_query: Query<&GraphEdge>,
-    node_query: Query<&GraphNode>,
     segment_query: Query<&RoadSegment>,
     intersection_query: Query<&Intersection>,
     building_query: Query<&Building>,
@@ -131,25 +127,21 @@ fn update_vehicles(
         let curr = vehicle.path[vehicle.path_index];
         let next = vehicle.path[vehicle.path_index + 1];
 
-        let curr_type = get_step_type(curr, &dest_query, &edge_query);
-        let next_type = get_step_type(next, &dest_query, &edge_query);
+        let curr_type = get_step_type(curr, &building_query, &segment_query);
+        let next_type = get_step_type(next, &building_query, &segment_query);
 
         if curr_type == StepType::Building && next_type == StepType::Road {
-            if let Ok(edge) = edge_query.get(next) {
-                if let Ok(segment) = segment_query.get(edge.object) {
-                    let lane_pos = segment.get_lane_pos(transform.translation);
-                    transform.translation = lane_pos;
-                    vehicle.path_index += 1;
-                    println!("start on segement");
-                    return;
-                }
+            if let Ok(segment) = segment_query.get(next) {
+                let lane_pos = segment.get_lane_pos(transform.translation);
+                transform.translation = lane_pos;
+                vehicle.path_index += 1;
+                println!("start on segement");
+                return;
             }
         } else if curr_type == StepType::Road && next_type == StepType::Building {
             if_chain! {
-                if let Ok(destination) = dest_query.get(next);
-                if let Ok(building) = building_query.get(destination.object);
-                if let Ok(edge) = edge_query.get(curr);
-                if let Ok(segment) = segment_query.get(edge.object);
+                if let Ok(building) = building_query.get(next);
+                if let Ok(segment) = segment_query.get(curr);
                 then {
                     let stopping_pos = get_building_stopping_pos(building, segment, transform.translation);
                     gizmos.line(transform.translation, stopping_pos, Color::linear_rgb(0.0, 1.0, 1.0));
@@ -168,10 +160,8 @@ fn update_vehicles(
             }
         } else if curr_type == StepType::Road && next_type == StepType::Intersection {
             if_chain! {
-                if let Ok(node) = node_query.get(next);
-                if let Ok(intersection) = intersection_query.get(node.object);
-                if let Ok(edge) = edge_query.get(curr);
-                if let Ok(segment) = segment_query.get(edge.object);
+                if let Ok(intersection) = intersection_query.get(next);
+                if let Ok(segment) = segment_query.get(curr);
                 then {
                     let approach_dir = direction_to_intersection(segment, intersection).inverse();
                     let stopping_pos = get_intersection_stopping_pos(intersection, approach_dir, transform.translation);
@@ -190,10 +180,8 @@ fn update_vehicles(
             }
         } else if curr_type == StepType::Intersection {
             if_chain! {
-                if let Ok(node) = node_query.get(curr);
-                if let Ok(intersection) = intersection_query.get(node.object);
-                if let Ok(next_edge) = edge_query.get(next);
-                if let Ok(next_segment) = segment_query.get(next_edge.object);
+                if let Ok(intersection) = intersection_query.get(curr);
+                if let Ok(next_segment) = segment_query.get(next);
                 then {
                     let next_dir = direction_to_intersection(next_segment, intersection).inverse();
                     let stopping_pos = get_intersection_stopping_pos(intersection, next_dir, transform.translation);
@@ -218,9 +206,9 @@ fn update_vehicles(
 
 fn spawn_vehicle(
     keyboard: Res<ButtonInput<KeyCode>>,
-    dest_query: Query<(Entity, &GraphDestination)>,
-    edge_query: Query<(Entity, &GraphEdge)>,
-    node_query: Query<(Entity, &GraphNode)>,
+    building_query: Query<(Entity, &Building)>,
+    segment_query: Query<(Entity, &RoadSegment)>,
+    inter_query: Query<(Entity, &Intersection)>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
@@ -228,7 +216,7 @@ fn spawn_vehicle(
     if keyboard.just_pressed(KeyCode::KeyP) {
         println!("generating debug path");
         let mut rng = rand::thread_rng();
-        let choose = dest_query.iter().choose_multiple(&mut rng, 2);
+        let choose = building_query.iter().choose_multiple(&mut rng, 2);
 
         if choose.len() < 2 {
             println!("not enough buildings to make a path");
@@ -251,7 +239,7 @@ fn spawn_vehicle(
         while let Some(curr) = frontier.pop() {
             visited.insert(curr);
             // if curr is destination
-            if let Ok((e, dest)) = dest_query.get(curr) {
+            if let Ok((e, dest)) = building_query.get(curr) {
                 println!("curr is destination");
 
                 if e == end_entity {
@@ -259,32 +247,33 @@ fn spawn_vehicle(
                     break;
                 }
 
-                if !dest.edges.is_empty() {
-                    frontier.push(dest.edges[0]);
-                    parent_map.insert(dest.edges[0], curr);
+                if !dest.roads.is_empty() {
+                    let start_road = dest.roads.iter().take(1).next().unwrap();
+                    frontier.push(*start_road);
+                    parent_map.insert(*start_road, curr);
                 }
             }
             // if curr is edge
-            else if let Ok((_e, edge)) = edge_query.get(curr) {
+            else if let Ok((_e, edge)) = segment_query.get(curr) {
                 println!("curr is edge");
 
                 // if end goal is a destination here, go to it
-                if edge.destinations.contains(&end_entity) {
+                if edge.dests.contains(&end_entity) {
                     frontier.push(end_entity);
                     parent_map.insert(end_entity, curr);
                 }
                 // Add endpoints of this edge
                 else {
-                    if let Some(endpoint0) = edge.endpoints[0] {
-                        if let Ok((en0, _n0)) = node_query.get(endpoint0) {
+                    if let Some(endpoint0) = edge.ends[0] {
+                        if let Ok((en0, _n0)) = inter_query.get(endpoint0) {
                             if !visited.contains(&en0) {
                                 frontier.push(en0);
                                 parent_map.insert(en0, curr);
                             }
                         }
                     }
-                    if let Some(endpoint1) = edge.endpoints[1] {
-                        if let Ok((en1, _n1)) = node_query.get(endpoint1) {
+                    if let Some(endpoint1) = edge.ends[1] {
+                        if let Ok((en1, _n1)) = inter_query.get(endpoint1) {
                             if !visited.contains(&en1) {
                                 frontier.push(en1);
                                 parent_map.insert(en1, curr);
@@ -294,12 +283,14 @@ fn spawn_vehicle(
                 }
             }
             // if curr is a node, add connected edges
-            else if let Ok((_e, node)) = node_query.get(curr) {
+            else if let Ok((_e, node)) = inter_query.get(curr) {
                 println!("curr is node");
-                for edge in &node.edges {
-                    if !visited.contains(edge) {
-                        frontier.push(*edge);
-                        parent_map.insert(*edge, curr);
+                for slot in &node.roads {
+                    if let Some(road) = slot {
+                        if !visited.contains(road) {
+                            frontier.push(*road);
+                            parent_map.insert(*road, curr);
+                        }
                     }
                 }
             }
@@ -320,7 +311,7 @@ fn spawn_vehicle(
             path.push(start_entity);
             path.reverse();
 
-            let start_location = dest_query.get(path[0]).unwrap().1.location.with_y(ROAD_HEIGHT + (VEHICLE_HEIGHT));
+            let start_location = building_query.get(path[0]).unwrap().1.pos().with_y(ROAD_HEIGHT + (VEHICLE_HEIGHT));
 
             commands.spawn((
                 PbrBundle {
@@ -338,15 +329,15 @@ fn spawn_vehicle(
 fn visualize_path(
     mut gizmos: Gizmos,
     vehicle_query: Query<&Vehicle>,
-    dest_query: Query<&GraphDestination>,
-    node_query: Query<&GraphNode>,
-    edge_query: Query<&GraphEdge>,
+    building_query: Query<&Building>,
+    inter_query: Query<&Intersection>,
+    segment_query: Query<&RoadSegment>,
 ) {
     if let Ok(vehicle) = vehicle_query.get_single() {
         if vehicle.path.len() >= 2 {
-            if let Ok(start) = dest_query.get(*vehicle.path.first().unwrap()) {
-                if let Ok(end) = dest_query.get(*vehicle.path.last().unwrap()) {
-                    gizmos.line(start.location.with_y(5.0), end.location.with_y(5.0), Color::WHITE);
+            if let Ok(start) = building_query.get(*vehicle.path.first().unwrap()) {
+                if let Ok(end) = building_query.get(*vehicle.path.last().unwrap()) {
+                    gizmos.line(start.pos().with_y(5.0), end.pos().with_y(5.0), Color::WHITE);
                 }
             }
 
@@ -354,12 +345,12 @@ fn visualize_path(
 
             for step in &vehicle.path {
                 let mut pos = None;
-                if let Ok(dest) = dest_query.get(*step) {
-                    pos = Some(dest.location);
-                } else if let Ok(edge) = edge_query.get(*step) {
-                    pos = Some(edge.location);
-                } else if let Ok(node) = node_query.get(*step) {
-                    pos = Some(node.location);
+                if let Ok(dest) = building_query.get(*step) {
+                    pos = Some(dest.pos());
+                } else if let Ok(edge) = segment_query.get(*step) {
+                    pos = Some(edge.pos());
+                } else if let Ok(node) = inter_query.get(*step) {
+                    pos = Some(node.pos());
                 }
 
                 if let Some(position) = pos {
