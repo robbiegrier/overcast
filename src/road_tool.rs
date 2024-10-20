@@ -36,8 +36,9 @@ impl Plugin for RoadToolPlugin {
                     (update_ground_position).in_set(UpdateStage::UpdateView),
                     (adjust_tool_size, change_orientation, handle_action).in_set(UpdateStage::UserInput),
                     (split_roads, extend_roads, bridge_roads).in_set(UpdateStage::HighLevelSideEffects),
-                    (destroy_roads).in_set(UpdateStage::LowLevelDestruction),
-                    (spawn_roads, spawn_intersections).in_set(UpdateStage::LowLevelSpawning),
+                    (start_destroy_roads).in_set(UpdateStage::InitiateDestruction),
+                    (spawn_roads, spawn_intersections).in_set(UpdateStage::Spawning),
+                    (cleanup_roads).in_set(UpdateStage::DestroyEntities),
                 )
                     .run_if(in_state(ToolState::Road)),
             );
@@ -368,16 +369,22 @@ fn spawn_intersections(
     }
 }
 
-fn destroy_roads(
-    mut commands: Commands,
+fn start_destroy_roads(
     mut destroy_event: EventReader<RequestDeleteRoad>,
-    // mut rem_event: EventWriter<GraphEdgeRemoveEvent>,
+    mut event: EventWriter<OnRoadDestroyed>,
     mut grid_query: Query<&mut Grid>,
 ) {
     for &RequestDeleteRoad { entity } in destroy_event.read() {
+        println!("Start destroy road {:?}", entity.index());
         grid_query.single_mut().erase(entity);
-        commands.entity(entity).despawn();
-        // rem_event.send(GraphEdgeRemoveEvent(entity));
+        event.send(OnRoadDestroyed(entity));
+    }
+}
+
+fn cleanup_roads(mut event: EventReader<OnRoadDestroyed>, mut commands: Commands) {
+    for &OnRoadDestroyed(entity) in event.read() {
+        println!("Finally remove road entity {:?}", entity.index());
+        commands.entity(entity).despawn_recursive();
     }
 }
 

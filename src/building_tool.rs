@@ -13,7 +13,7 @@ pub struct BuildingToolPlugin;
 
 impl Plugin for BuildingToolPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<OnBuildingSpawned>().add_systems(Startup, spawn_tool).add_systems(
+        app.add_systems(Startup, spawn_tool).add_systems(
             Update,
             (
                 (update_ground_position).in_set(UpdateStage::UpdateView),

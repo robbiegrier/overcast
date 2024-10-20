@@ -10,16 +10,17 @@ impl Plugin for SchedulePlugin {
                 UpdateStage::UpdateView,
                 UpdateStage::UserInput,
                 UpdateStage::HighLevelSideEffects,
-                UpdateStage::LowLevelDestruction,
-                UpdateStage::LowLevelSpawning,
+                UpdateStage::InitiateDestruction,
+                UpdateStage::Spawning,
                 UpdateStage::UpdateGraph,
+                UpdateStage::DestroyEntities,
                 UpdateStage::Visualize,
             )
                 .chain(),
         )
         .add_systems(
             Update,
-            (apply_deferred).after(UpdateStage::LowLevelSpawning).before(UpdateStage::UpdateGraph),
+            (apply_deferred).after(UpdateStage::Spawning).before(UpdateStage::UpdateGraph),
         );
     }
 }
@@ -29,8 +30,9 @@ pub enum UpdateStage {
     UpdateView,
     UserInput,
     HighLevelSideEffects,
-    LowLevelDestruction,
-    LowLevelSpawning,
+    InitiateDestruction,
+    Spawning,
     UpdateGraph,
+    DestroyEntities,
     Visualize,
 }
