@@ -1,40 +1,56 @@
 use crate::grid_area::*;
 use crate::grid_cell::*;
-use crate::road_tool::Axis;
+use crate::orientation::GAxis;
 use bevy::prelude::*;
+use bevy::utils::HashSet;
 
 #[derive(Component, Debug)]
 pub struct RoadSegment {
-    pub orientation: Axis,
+    pub orientation: GAxis,
     pub area: GridArea,
+    pub ends: [Option<Entity>; 2],
+    pub dests: HashSet<Entity>,
 }
 
 impl RoadSegment {
-    pub fn new(area: GridArea, orientation: Axis) -> Self {
-        Self { orientation, area }
+    pub fn new(area: GridArea, orientation: GAxis) -> Self {
+        Self {
+            orientation,
+            area,
+            ends: [None; 2],
+            dests: HashSet::new(),
+        }
+    }
+
+    pub fn area(&self) -> GridArea {
+        self.area
+    }
+
+    pub fn pos(&self) -> Vec3 {
+        self.area.center()
     }
 
     pub fn drive_length(&self) -> i32 {
         match self.orientation {
-            Axis::Z => self.area.cell_dimensions().y,
-            Axis::X => self.area.cell_dimensions().x,
+            GAxis::Z => self.area.cell_dimensions().y,
+            GAxis::X => self.area.cell_dimensions().x,
         }
     }
 
     pub fn drive_width(&self) -> i32 {
         match self.orientation {
-            Axis::Z => self.area.cell_dimensions().x,
-            Axis::X => self.area.cell_dimensions().y,
+            GAxis::Z => self.area.cell_dimensions().x,
+            GAxis::X => self.area.cell_dimensions().y,
         }
     }
 
     pub fn get_intersection_area(&self, turn_to_area: GridArea) -> GridArea {
         match self.orientation {
-            Axis::Z => GridArea::new(
+            GAxis::Z => GridArea::new(
                 GridCell::new(self.area.min.position.x, turn_to_area.min.position.y),
                 GridCell::new(self.area.max.position.x, turn_to_area.max.position.y),
             ),
-            Axis::X => GridArea::new(
+            GAxis::X => GridArea::new(
                 GridCell::new(turn_to_area.min.position.x, self.area.min.position.y),
                 GridCell::new(turn_to_area.max.position.x, self.area.max.position.y),
             ),
@@ -43,17 +59,8 @@ impl RoadSegment {
 
     pub fn get_lane_pos(&self, start_pos: Vec3) -> Vec3 {
         match self.orientation {
-            Axis::Z => start_pos.with_x(self.area.center().x),
-            Axis::X => start_pos.with_z(self.area.center().z),
+            GAxis::Z => start_pos.with_x(self.area.center().x),
+            GAxis::X => start_pos.with_z(self.area.center().z),
         }
-
-        // match self.orientation {
-        //     Axis::Z => {
-        //         self.area.center().with_z(start_pos.z) + Vec3::new(direction * (self.area.dimensions().x / 2.0), 0.0, 0.0)
-        //     }
-        //     Axis::X => {
-        //         self.area.center().with_x(start_pos.x) + Vec3::new(0.0, 0.0, direction * (self.area.dimensions().y / 2.0))
-        //     }
-        // }
     }
 }

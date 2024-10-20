@@ -1,10 +1,10 @@
-use crate::road_tool::Axis;
 use crate::{
     building_tool::Building,
     graph_events::*,
     grid::{Grid, Ground},
+    intersection::Intersection,
+    orientation::Axis,
     road_segment::RoadSegment,
-    road_tool::Intersection,
 };
 use bevy::{prelude::*, utils::hashbrown::HashMap};
 use if_chain::if_chain;

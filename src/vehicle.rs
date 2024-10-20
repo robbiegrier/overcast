@@ -1,8 +1,10 @@
 use crate::{
     building_tool::Building,
     graph::{GraphDestination, GraphEdge, GraphNode},
+    intersection::Intersection,
+    orientation::{Axis, Direction},
     road_segment::RoadSegment,
-    road_tool::{self, Axis, Intersection},
+    road_tool::ROAD_HEIGHT,
 };
 use bevy::{
     prelude::*,
@@ -45,25 +47,6 @@ enum StepType {
     Road,
     Intersection,
     Building,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Direction {
-    North,
-    South,
-    East,
-    West,
-}
-
-impl Direction {
-    pub fn inverse(&self) -> Direction {
-        match *self {
-            Direction::North => Direction::South,
-            Direction::South => Direction::North,
-            Direction::East => Direction::West,
-            Direction::West => Direction::East,
-        }
-    }
 }
 
 fn get_step_type(step_entity: Entity, dest_query: &Query<&GraphDestination>, edge_query: &Query<&GraphEdge>) -> StepType {
@@ -337,8 +320,7 @@ fn spawn_vehicle(
             path.push(start_entity);
             path.reverse();
 
-            let start_location =
-                dest_query.get(path[0]).unwrap().1.location.with_y(road_tool::ROAD_HEIGHT + (VEHICLE_HEIGHT));
+            let start_location = dest_query.get(path[0]).unwrap().1.location.with_y(ROAD_HEIGHT + (VEHICLE_HEIGHT));
 
             commands.spawn((
                 PbrBundle {

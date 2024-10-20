@@ -1,71 +1,71 @@
-use crate::{grid_area::GridArea, road_tool::Axis};
+use crate::{grid_area::GridArea, orientation::GAxis};
 use bevy::prelude::*;
 
 #[derive(Event, Debug)]
-pub struct RoadCreateEvent {
+pub struct RequestRoad {
     pub area: GridArea,
-    pub orientation: Axis,
+    pub orientation: GAxis,
 }
 
-impl RoadCreateEvent {
-    pub fn new(area: GridArea, orientation: Axis) -> Self {
+impl RequestRoad {
+    pub fn new(area: GridArea, orientation: GAxis) -> Self {
         Self { area, orientation }
     }
 }
 
 #[derive(Event, Debug)]
-pub struct RoadDestroyEvent {
+pub struct RequestDeleteRoad {
     pub entity: Entity,
 }
 
-impl RoadDestroyEvent {
+impl RequestDeleteRoad {
     pub fn new(entity: Entity) -> Self {
         Self { entity }
     }
 }
 
 #[derive(Event, Debug)]
-pub struct IntersectionCreateEvent {
+pub struct RequestIntersection {
     pub area: GridArea,
 }
 
-impl IntersectionCreateEvent {
+impl RequestIntersection {
     pub fn new(area: GridArea) -> Self {
         Self { area }
     }
 }
 
 #[derive(Event, Debug)]
-pub struct RoadSplitEvent {
+pub struct RequestRoadSplit {
     pub entity: Entity,
     pub split_area: GridArea,
 }
 
-impl RoadSplitEvent {
+impl RequestRoadSplit {
     pub fn new(entity: Entity, split_area: GridArea) -> Self {
         Self { entity, split_area }
     }
 }
 
 #[derive(Event, Debug)]
-pub struct RoadExtendEvent {
+pub struct RequestRoadExtend {
     pub entity: Entity,
     pub extension: GridArea,
 }
 
-impl RoadExtendEvent {
+impl RequestRoadExtend {
     pub fn new(entity: Entity, extension: GridArea) -> Self {
         Self { entity, extension }
     }
 }
 
 #[derive(Event, Debug)]
-pub struct RoadBridgeEvent {
+pub struct RequestRoadBridge {
     pub first: Entity,
     pub second: Entity,
 }
 
-impl RoadBridgeEvent {
+impl RequestRoadBridge {
     pub fn new(first: Entity, second: Entity) -> Self {
         Self { first, second }
     }

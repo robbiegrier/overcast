@@ -1,4 +1,4 @@
-use crate::grid_cell::GridCell;
+use crate::{grid_cell::GridCell, orientation::GDir};
 use bevy::prelude::*;
 
 #[derive(Copy, Clone, Debug)]
@@ -152,14 +152,14 @@ pub struct GridAdjacentAreasIterator<'a> {
 }
 
 impl<'a> Iterator for GridAdjacentAreasIterator<'a> {
-    type Item = GridArea;
+    type Item = (GridArea, GDir);
 
     fn next(&mut self) -> Option<Self::Item> {
         let next = match self.index {
-            0 => Some(self.area.adjacent_top()),
-            1 => Some(self.area.adjacent_bottom()),
-            2 => Some(self.area.adjacent_left()),
-            3 => Some(self.area.adjacent_right()),
+            0 => Some((self.area.adjacent_top(), GDir::North)),
+            1 => Some((self.area.adjacent_bottom(), GDir::South)),
+            2 => Some((self.area.adjacent_left(), GDir::West)),
+            3 => Some((self.area.adjacent_right(), GDir::East)),
             _ => None,
         };
         self.index += 1;

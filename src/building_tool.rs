@@ -1,22 +1,23 @@
 use crate::{
     camera::PlayerCameraController,
-    graph_events::GraphDestinationAddEvent,
     grid::{Grid, Ground},
     grid_area::GridArea,
+    road_graph_events::*,
+    schedule::UpdateStage,
     toolbar::ToolState,
 };
-use bevy::prelude::*;
+use bevy::{prelude::*, utils::HashSet};
 use rand::Rng;
 
 pub struct BuildingToolPlugin;
 
 impl Plugin for BuildingToolPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_tool).add_systems(
+        app.add_event::<OnBuildingSpawned>().add_systems(Startup, spawn_tool).add_systems(
             Update,
             (
-                update_ground_position,
-                (adjust_tool_size, handle_tool_action, toggle_tool_mode),
+                (update_ground_position).in_set(UpdateStage::UpdateView),
+                (adjust_tool_size, handle_tool_action, toggle_tool_mode).in_set(UpdateStage::UserInput),
             )
                 .run_if(in_state(ToolState::Building)),
         );
@@ -26,11 +27,23 @@ impl Plugin for BuildingToolPlugin {
 #[derive(Component, Debug)]
 pub struct Building {
     pub area: GridArea,
+    pub roads: HashSet<Entity>,
 }
 
 impl Building {
     pub fn new(area: GridArea) -> Self {
-        Self { area }
+        Self {
+            area,
+            roads: HashSet::new(),
+        }
+    }
+
+    pub fn area(&self) -> GridArea {
+        self.area
+    }
+
+    pub fn pos(&self) -> Vec3 {
+        self.area.center()
     }
 }
 
@@ -174,14 +187,14 @@ fn handle_tool_action(
     keyboard: Res<ButtonInput<KeyCode>>,
     meshes: ResMut<Assets<Mesh>>,
     materials: ResMut<Assets<StandardMaterial>>,
-    graph_event: EventWriter<GraphDestinationAddEvent>,
+    event: EventWriter<OnBuildingSpawned>,
 ) {
     let tool = query.single();
     let mut grid = grid_query.single_mut();
 
     if mouse.just_pressed(MouseButton::Left) && !keyboard.any_pressed([KeyCode::AltLeft, KeyCode::ControlLeft]) {
         match tool.mode {
-            BuildingToolMode::Spawner => place_building(commands, tool, &mut grid, meshes, materials, graph_event),
+            BuildingToolMode::Spawner => place_building(commands, tool, &mut grid, meshes, materials, event),
             BuildingToolMode::Eraser => erase_building(commands, tool, &mut grid),
         }
     }
@@ -193,31 +206,25 @@ fn place_building(
     grid: &mut Grid,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut graph_event: EventWriter<GraphDestinationAddEvent>,
+    mut event: EventWriter<OnBuildingSpawned>,
 ) {
     let area = GridArea::at(tool.ground_position, tool.dimensions.x, tool.dimensions.y);
 
     let rheight = rand::thread_rng().gen_range(0.5..6.0);
     let rgray = rand::thread_rng().gen_range(0.05..0.25);
-    let alley_width = 0.5;
+    let crop = 0.5;
 
     if grid.is_valid_paint_area(area) {
-        let size = area.dimensions();
-        let entity = commands
-            .spawn((
-                PbrBundle {
-                    mesh: meshes.add(Cuboid::new(size.x - alley_width, rheight, size.y - alley_width)),
-                    material: materials.add(Color::linear_rgb(rgray, rgray, rgray)),
-                    transform: Transform::from_translation(area.center().with_y(rheight / 2.0)),
-                    ..default()
-                },
-                Building::new(area),
-            ))
-            .id();
+        let model = PbrBundle {
+            mesh: meshes.add(Cuboid::new(area.dimensions().x - crop, rheight, area.dimensions().y - crop)),
+            material: materials.add(Color::linear_rgb(rgray, rgray, rgray)),
+            transform: Transform::from_translation(area.center().with_y(rheight / 2.0)),
+            ..default()
+        };
 
+        let entity = commands.spawn((model, Building::new(area))).id();
         grid.mark_area_occupied(area, entity);
-
-        graph_event.send(GraphDestinationAddEvent(entity));
+        event.send(OnBuildingSpawned(entity));
     }
 }
 
