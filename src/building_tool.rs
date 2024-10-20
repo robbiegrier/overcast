@@ -188,6 +188,7 @@ fn handle_tool_action(
     meshes: ResMut<Assets<Mesh>>,
     materials: ResMut<Assets<StandardMaterial>>,
     event: EventWriter<OnBuildingSpawned>,
+    building_query: Query<&Building>,
 ) {
     let tool = query.single();
     let mut grid = grid_query.single_mut();
@@ -195,7 +196,7 @@ fn handle_tool_action(
     if mouse.just_pressed(MouseButton::Left) && !keyboard.any_pressed([KeyCode::AltLeft, KeyCode::ControlLeft]) {
         match tool.mode {
             BuildingToolMode::Spawner => place_building(commands, tool, &mut grid, meshes, materials, event),
-            BuildingToolMode::Eraser => erase_building(commands, tool, &mut grid),
+            BuildingToolMode::Eraser => erase_building(commands, tool, &mut grid, &building_query),
         }
     }
 }
@@ -228,14 +229,17 @@ fn place_building(
     }
 }
 
-fn erase_building(mut commands: Commands, tool: &BuildingTool, grid: &mut Grid) {
+fn erase_building(mut commands: Commands, tool: &BuildingTool, grid: &mut Grid, building_query: &Query<&Building>) {
     let area = GridArea::at(tool.ground_position, tool.dimensions.x, tool.dimensions.y);
 
+    println!("building eraser disabled");
     for cell in area.iter() {
         if let Ok(entity_slot) = grid.entity_at(cell) {
             if let Some(entity) = entity_slot {
-                grid.erase(entity);
-                commands.entity(entity).despawn_recursive();
+                if building_query.contains(entity) {
+                    // grid.erase(entity);
+                    // commands.entity(entity).despawn_recursive();
+                }
             }
         }
     }
