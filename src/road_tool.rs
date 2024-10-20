@@ -36,7 +36,6 @@ impl Plugin for RoadToolPlugin {
                     (adjust_tool_size, change_orientation, handle_action).in_set(UpdateStage::UserInput),
                     (split_roads, extend_roads, bridge_roads).in_set(UpdateStage::HighLevelSideEffects),
                     (spawn_roads, spawn_intersections).in_set(UpdateStage::Spawning),
-                    // (cleanup_roads).in_set(UpdateStage::DestroyEntities),
                 )
                     .run_if(in_state(ToolState::Road)),
             );

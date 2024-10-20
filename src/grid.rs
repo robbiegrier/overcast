@@ -26,7 +26,7 @@ impl Plugin for GridPlugin {
                         clear_erased_objects_from_grid::<OnIntersectionDestroyed>,
                         clear_erased_objects_from_grid::<OnBuildingDestroyed>,
                     )
-                        .in_set(UpdateStage::InitiateDestruction),
+                        .in_set(UpdateStage::SoftDestroy),
                     (toggle_grid_visualization, visualize_occupancy).in_set(UpdateStage::Visualize),
                 ),
             );

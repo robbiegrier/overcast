@@ -34,7 +34,7 @@ impl Plugin for RoadGraphPlugin {
                         remove_intersections_from_graph,
                         remove_buildings_from_graph,
                     )
-                        .in_set(UpdateStage::UpdateGraph),
+                        .in_set(UpdateStage::Analyze),
                     (visualize_segments, visualize_intersections, visualize_buildings)
                         .in_set(UpdateStage::Visualize)
                         .run_if(in_state(GraphVisualizationState::Visualize)),
