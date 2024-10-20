@@ -1,5 +1,6 @@
 mod building_tool;
 mod camera;
+mod eraser_tool;
 mod grid;
 mod grid_area;
 mod grid_cell;
@@ -10,11 +11,12 @@ mod road_graph;
 mod road_graph_events;
 mod road_segment;
 mod road_tool;
+mod schedule;
 mod toolbar;
 mod vehicle;
 mod weather;
+
 use bevy::prelude::*;
-mod schedule;
 
 fn main() {
     App::new()

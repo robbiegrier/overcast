@@ -256,11 +256,17 @@ fn update_camera_raycast(
     let mut controller = controller_query.single_mut();
     let ground = ground_query.single();
 
-    let window_center = Vec2::new(windows.single().width() / 2.0, windows.single().height() / 2.0);
-    if let Some(ray_center) = camera.viewport_to_world(camera_transform, window_center) {
-        if let Some(center_distance) = ray_center.intersect_plane(ground.translation(), InfinitePlane3d::new(ground.up())) {
-            let center_point = ray_center.get_point(center_distance);
-            controller.camera_center_ground_position = center_point;
-        };
+    let Ok(window) = windows.get_single() else {
+        return;
+    };
+
+    let window_center = Vec2::new(window.width() / 2.0, window.height() / 2.0);
+    let Some(ray_center) = camera.viewport_to_world(camera_transform, window_center) else {
+        return;
+    };
+
+    if let Some(center_distance) = ray_center.intersect_plane(ground.translation(), InfinitePlane3d::new(ground.up())) {
+        let center_point = ray_center.get_point(center_distance);
+        controller.camera_center_ground_position = center_point;
     };
 }

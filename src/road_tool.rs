@@ -25,7 +25,6 @@ impl Plugin for RoadToolPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_tool)
             .add_event::<RequestRoad>()
-            .add_event::<RequestDeleteRoad>()
             .add_event::<RequestIntersection>()
             .add_event::<RequestRoadSplit>()
             .add_event::<RequestRoadExtend>()
@@ -36,9 +35,8 @@ impl Plugin for RoadToolPlugin {
                     (update_ground_position).in_set(UpdateStage::UpdateView),
                     (adjust_tool_size, change_orientation, handle_action).in_set(UpdateStage::UserInput),
                     (split_roads, extend_roads, bridge_roads).in_set(UpdateStage::HighLevelSideEffects),
-                    (start_destroy_roads).in_set(UpdateStage::InitiateDestruction),
                     (spawn_roads, spawn_intersections).in_set(UpdateStage::Spawning),
-                    (cleanup_roads).in_set(UpdateStage::DestroyEntities),
+                    // (cleanup_roads).in_set(UpdateStage::DestroyEntities),
                 )
                     .run_if(in_state(ToolState::Road)),
             );
@@ -64,7 +62,7 @@ pub struct RoadTool {
 impl RoadTool {
     fn new() -> Self {
         Self {
-            width: 3,
+            width: 2,
             ground_position: Vec3::ZERO,
             drag_start_ground_position: Vec3::ZERO,
             dragging: false,
@@ -161,40 +159,48 @@ fn update_ground_position(
     let mut tool = tool_query.single_mut();
     let ground = ground_query.single();
 
-    if let Some(cursor_position) = windows.single().cursor_position() {
-        if let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) {
-            if let Some(distance) = ray.intersect_plane(ground.translation(), InfinitePlane3d::new(ground.up())) {
-                let point = ray.get_point(distance);
-                tool.ground_position = point;
+    let Ok(window) = windows.get_single() else {
+        return;
+    };
 
-                let area = tool.area();
+    let Some(cursor_position) = window.cursor_position() else {
+        return;
+    };
 
-                if tool.dragging {
-                    tool.drag_area = area;
-                }
+    let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
+        return;
+    };
 
-                let mut gizmo_color = match tool.mode {
-                    RoadToolMode::Spawner => {
-                        if grid_query.single().is_valid_paint_area(area) {
-                            Color::linear_rgba(0.5, 0.0, 0.85, 0.8)
-                        } else {
-                            Color::linear_rgba(1.0, 0.0, 0.0, 0.25)
-                        }
-                    }
-                };
+    if let Some(distance) = ray.intersect_plane(ground.translation(), InfinitePlane3d::new(ground.up())) {
+        let point = ray.get_point(distance);
+        tool.ground_position = point;
 
-                if controller.is_moving() {
-                    gizmo_color = gizmo_color.with_alpha(0.25);
-                }
+        let area = tool.area();
 
-                gizmos.rect(
-                    area.center() + ground.up() * 0.01,
-                    Quat::from_rotation_x(FRAC_PI_2),
-                    area.dimensions(),
-                    gizmo_color,
-                );
-            }
+        if tool.dragging {
+            tool.drag_area = area;
         }
+
+        let mut gizmo_color = match tool.mode {
+            RoadToolMode::Spawner => {
+                if grid_query.single().is_valid_paint_area(area) {
+                    Color::linear_rgba(0.5, 0.0, 0.85, 0.8)
+                } else {
+                    Color::linear_rgba(1.0, 0.0, 0.0, 0.25)
+                }
+            }
+        };
+
+        if controller.is_moving() {
+            gizmo_color = gizmo_color.with_alpha(0.25);
+        }
+
+        gizmos.rect(
+            area.center() + ground.up() * 0.01,
+            Quat::from_rotation_x(FRAC_PI_2),
+            area.dimensions(),
+            gizmo_color,
+        );
     }
 }
 
@@ -202,13 +208,13 @@ fn adjust_tool_size(mut query: Query<&mut RoadTool>, keyboard: Res<ButtonInput<K
     let mut tool = query.single_mut();
 
     if keyboard.just_pressed(KeyCode::KeyR) {
-        tool.width += 1;
+        tool.width += 2;
     }
     if keyboard.just_pressed(KeyCode::KeyF) {
-        tool.width -= 1;
+        tool.width -= 2;
     }
 
-    tool.width = tool.width.max(1);
+    tool.width = tool.width.max(2);
 }
 
 fn change_orientation(mut query: Query<&mut RoadTool>, keyboard: Res<ButtonInput<KeyCode>>) {
@@ -369,28 +375,9 @@ fn spawn_intersections(
     }
 }
 
-fn start_destroy_roads(
-    mut destroy_event: EventReader<RequestDeleteRoad>,
-    mut event: EventWriter<OnRoadDestroyed>,
-    mut grid_query: Query<&mut Grid>,
-) {
-    for &RequestDeleteRoad { entity } in destroy_event.read() {
-        println!("Start destroy road {:?}", entity.index());
-        grid_query.single_mut().erase(entity);
-        event.send(OnRoadDestroyed(entity));
-    }
-}
-
-fn cleanup_roads(mut event: EventReader<OnRoadDestroyed>, mut commands: Commands) {
-    for &OnRoadDestroyed(entity) in event.read() {
-        println!("Finally remove road entity {:?}", entity.index());
-        commands.entity(entity).despawn_recursive();
-    }
-}
-
 fn split_roads(
     mut split_event: EventReader<RequestRoadSplit>,
-    mut destroyer: EventWriter<RequestDeleteRoad>,
+    mut destroyer: EventWriter<OnRoadDestroyed>,
     segment_query: Query<&mut RoadSegment>,
     mut roads: EventWriter<RequestRoad>,
 ) {
@@ -422,14 +409,14 @@ fn split_roads(
                 }
             }
 
-            destroyer.send(RequestDeleteRoad::new(entity));
+            destroyer.send(OnRoadDestroyed(entity));
         }
     }
 }
 
 fn extend_roads(
     mut extend_event: EventReader<RequestRoadExtend>,
-    mut destroyer: EventWriter<RequestDeleteRoad>,
+    mut destroyer: EventWriter<OnRoadDestroyed>,
     segment_query: Query<&mut RoadSegment>,
     mut roads: EventWriter<RequestRoad>,
 ) {
@@ -437,14 +424,14 @@ fn extend_roads(
         if let Ok(original_segment) = segment_query.get(entity) {
             let extended_area = original_segment.area.union(extension);
             roads.send(RequestRoad::new(extended_area, original_segment.orientation));
-            destroyer.send(RequestDeleteRoad::new(entity));
+            destroyer.send(OnRoadDestroyed(entity));
         }
     }
 }
 
 fn bridge_roads(
     mut bridge_event: EventReader<RequestRoadBridge>,
-    mut destroyer: EventWriter<RequestDeleteRoad>,
+    mut destroyer: EventWriter<OnRoadDestroyed>,
     segment_query: Query<&mut RoadSegment>,
     mut roads: EventWriter<RequestRoad>,
 ) {
@@ -453,8 +440,8 @@ fn bridge_roads(
             if let Ok(second_segment) = segment_query.get(second) {
                 let extended_area = first_segment.area.union(second_segment.area);
                 roads.send(RequestRoad::new(extended_area, first_segment.orientation));
-                destroyer.send(RequestDeleteRoad::new(first));
-                destroyer.send(RequestDeleteRoad::new(second));
+                destroyer.send(OnRoadDestroyed(first));
+                destroyer.send(OnRoadDestroyed(second));
             }
         }
     }

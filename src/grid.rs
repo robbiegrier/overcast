@@ -1,4 +1,9 @@
-use crate::{grid_area::GridArea, grid_cell::GridCell};
+use crate::{
+    grid_area::GridArea,
+    grid_cell::GridCell,
+    road_graph_events::{OnBuildingDestroyed, OnIntersectionDestroyed, OnRoadDestroyed},
+    schedule::UpdateStage,
+};
 use bevy::{prelude::*, utils::HashMap};
 use bevy_infinite_grid::{InfiniteGrid, InfiniteGridBundle};
 use std::{f32::consts::FRAC_PI_2, fmt};
@@ -13,7 +18,18 @@ impl Plugin for GridPlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(bevy_infinite_grid::InfiniteGridPlugin)
             .add_systems(Startup, (spawn_grid, spawn_ground, spawn_grid_visualization))
-            .add_systems(Update, (toggle_grid_visualization, visualize_occupancy));
+            .add_systems(
+                Update,
+                (
+                    (
+                        clear_erased_objects_from_grid::<OnRoadDestroyed>,
+                        clear_erased_objects_from_grid::<OnIntersectionDestroyed>,
+                        clear_erased_objects_from_grid::<OnBuildingDestroyed>,
+                    )
+                        .in_set(UpdateStage::InitiateDestruction),
+                    (toggle_grid_visualization, visualize_occupancy).in_set(UpdateStage::Visualize),
+                ),
+            );
     }
 }
 
@@ -139,6 +155,19 @@ fn spawn_grid_visualization(mut commands: Commands) {
         visibility: Visibility::Visible,
         ..default()
     });
+}
+
+fn clear_erased_objects_from_grid<E>(mut destroy_event: EventReader<E>, mut grid_query: Query<&mut Grid>)
+where
+    E: Event + AsRef<Entity>,
+{
+    let mut grid = grid_query.single_mut();
+
+    for generic in destroy_event.read() {
+        let entity: Entity = *generic.as_ref();
+        println!("Clear from grid {:?}", entity);
+        grid.erase(entity);
+    }
 }
 
 fn toggle_grid_visualization(

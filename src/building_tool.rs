@@ -88,40 +88,48 @@ fn update_ground_position(
     let mut tool = tool_query.single_mut();
     let ground = ground_query.single();
 
-    if let Some(cursor_position) = windows.single().cursor_position() {
-        if let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) {
-            if let Some(distance) = ray.intersect_plane(ground.translation(), InfinitePlane3d::new(ground.up())) {
-                let point = ray.get_point(distance);
+    let Ok(window) = windows.get_single() else {
+        return;
+    };
 
-                tool.ground_position = point;
+    let Some(cursor_position) = window.cursor_position() else {
+        return;
+    };
 
-                let area = GridArea::at(tool.ground_position, tool.dimensions.x, tool.dimensions.y);
+    let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
+        return;
+    };
 
-                let mut gizmo_color = match tool.mode {
-                    BuildingToolMode::Spawner => {
-                        if grid_query.single().is_valid_paint_area(area) {
-                            Color::linear_rgba(0.0, 1.0, 1.0, 0.8)
-                        } else {
-                            Color::linear_rgba(1.0, 0.0, 0.0, 0.25)
-                        }
-                    }
-                    BuildingToolMode::Eraser => Color::linear_rgba(1.0, 1.0, 0.0, 0.8),
-                };
+    if let Some(distance) = ray.intersect_plane(ground.translation(), InfinitePlane3d::new(ground.up())) {
+        let point = ray.get_point(distance);
 
-                if controller.is_moving() {
-                    gizmo_color = gizmo_color.with_alpha(0.25);
+        tool.ground_position = point;
+
+        let area = GridArea::at(tool.ground_position, tool.dimensions.x, tool.dimensions.y);
+
+        let mut gizmo_color = match tool.mode {
+            BuildingToolMode::Spawner => {
+                if grid_query.single().is_valid_paint_area(area) {
+                    Color::linear_rgba(0.0, 1.0, 1.0, 0.8)
+                } else {
+                    Color::linear_rgba(1.0, 0.0, 0.0, 0.25)
                 }
-
-                gizmos.cuboid(
-                    Transform::from_translation(area.center().with_y(0.5)).with_scale(Vec3::new(
-                        area.dimensions().x,
-                        1.0,
-                        area.dimensions().y,
-                    )),
-                    gizmo_color,
-                );
             }
+            BuildingToolMode::Eraser => Color::linear_rgba(1.0, 1.0, 0.0, 0.8),
+        };
+
+        if controller.is_moving() {
+            gizmo_color = gizmo_color.with_alpha(0.25);
         }
+
+        gizmos.cuboid(
+            Transform::from_translation(area.center().with_y(0.5)).with_scale(Vec3::new(
+                area.dimensions().x,
+                1.0,
+                area.dimensions().y,
+            )),
+            gizmo_color,
+        );
     }
 }
 
@@ -229,7 +237,7 @@ fn place_building(
     }
 }
 
-fn erase_building(mut commands: Commands, tool: &BuildingTool, grid: &mut Grid, building_query: &Query<&Building>) {
+fn erase_building(mut _commands: Commands, tool: &BuildingTool, grid: &mut Grid, building_query: &Query<&Building>) {
     let area = GridArea::at(tool.ground_position, tool.dimensions.x, tool.dimensions.y);
 
     println!("building eraser disabled");

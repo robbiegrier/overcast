@@ -30,6 +30,7 @@ impl RoadSegment {
         self.area.center()
     }
 
+    #[allow(dead_code)]
     pub fn drive_length(&self) -> i32 {
         match self.orientation {
             GAxis::Z => self.area.cell_dimensions().y,

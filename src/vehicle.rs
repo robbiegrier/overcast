@@ -12,8 +12,8 @@ use bevy::{
 use if_chain::if_chain;
 use rand::seq::IteratorRandom;
 
-const VEHICLE_HEIGHT: f32 = 0.1;
-const VEHICLE_LENGTH: f32 = 0.2;
+const VEHICLE_HEIGHT: f32 = 0.333;
+const VEHICLE_LENGTH: f32 = VEHICLE_HEIGHT * 2.0;
 const VEHICLE_MAX_SPEED: f32 = 2.0;
 
 pub struct VehiclePlugin;
@@ -315,7 +315,7 @@ fn spawn_vehicle(
 
             commands.spawn((
                 PbrBundle {
-                    mesh: meshes.add(Cuboid::new(0.1, VEHICLE_HEIGHT, 0.2)),
+                    mesh: meshes.add(Cuboid::new(VEHICLE_HEIGHT, VEHICLE_HEIGHT, VEHICLE_LENGTH)),
                     material: materials.add(Color::linear_rgb(1.0, 0.8, 0.1)),
                     transform: Transform::from_translation(start_location),
                     ..default()

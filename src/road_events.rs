@@ -14,17 +14,6 @@ impl RequestRoad {
 }
 
 #[derive(Event, Debug)]
-pub struct RequestDeleteRoad {
-    pub entity: Entity,
-}
-
-impl RequestDeleteRoad {
-    pub fn new(entity: Entity) -> Self {
-        Self { entity }
-    }
-}
-
-#[derive(Event, Debug)]
 pub struct RequestIntersection {
     pub area: GridArea,
 }

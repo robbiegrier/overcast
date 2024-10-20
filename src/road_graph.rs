@@ -20,6 +20,8 @@ impl Plugin for RoadGraphPlugin {
             .add_event::<OnIntersectionSpawned>()
             .add_event::<OnBuildingSpawned>()
             .add_event::<OnRoadDestroyed>()
+            .add_event::<OnIntersectionDestroyed>()
+            .add_event::<OnBuildingDestroyed>()
             .add_systems(
                 Update,
                 (
@@ -29,6 +31,8 @@ impl Plugin for RoadGraphPlugin {
                         add_intersections_to_graph,
                         add_buildings_to_graph,
                         remove_roads_from_graph,
+                        remove_intersections_from_graph,
+                        remove_buildings_from_graph,
                     )
                         .in_set(UpdateStage::UpdateGraph),
                     (visualize_segments, visualize_intersections, visualize_buildings)
@@ -144,6 +148,48 @@ pub fn remove_roads_from_graph(
             for dest in &segment.dests {
                 if let Ok(mut building) = building_query.get_mut(*dest) {
                     building.roads.remove(&entity);
+                }
+            }
+        }
+    }
+}
+
+pub fn remove_intersections_from_graph(
+    mut event: EventReader<OnIntersectionDestroyed>,
+    inter_query: Query<&mut Intersection>,
+    mut segment_query: Query<&mut RoadSegment>,
+) {
+    for &OnIntersectionDestroyed(entity) in event.read() {
+        if let Ok(inter) = inter_query.get(entity) {
+            println!("removing intersection from graph {:?}", entity.index());
+
+            for slot in &inter.roads {
+                if let Some(road) = slot {
+                    if let Ok(mut segment) = segment_query.get_mut(*road) {
+                        for end in &mut segment.ends {
+                            if *end == Some(entity) {
+                                *end = None;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+pub fn remove_buildings_from_graph(
+    mut event: EventReader<OnBuildingDestroyed>,
+    building_query: Query<&Building>,
+    mut segment_query: Query<&mut RoadSegment>,
+) {
+    for &OnBuildingDestroyed(entity) in event.read() {
+        if let Ok(building) = building_query.get(entity) {
+            println!("removing building from graph {:?}", entity.index());
+
+            for road in &building.roads {
+                if let Ok(mut segment) = segment_query.get_mut(*road) {
+                    segment.dests.remove(&entity);
                 }
             }
         }
