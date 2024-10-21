@@ -131,15 +131,13 @@ fn handle_tool_action(
         let area = GridArea::at(tool.ground_position, tool.dimensions.x, tool.dimensions.y);
 
         for cell in area.iter() {
-            if let Ok(entity_slot) = grid.entity_at(cell) {
-                if let Some(entity) = entity_slot {
-                    if building_query.contains(entity) {
-                        building_event.send(OnBuildingDestroyed(entity));
-                    } else if segment_query.contains(entity) {
-                        segment_event.send(OnRoadDestroyed(entity));
-                    } else if inter_query.contains(entity) {
-                        inter_event.send(OnIntersectionDestroyed(entity));
-                    }
+            if let Ok(Some(entity)) = grid.entity_at(cell) {
+                if building_query.contains(entity) {
+                    building_event.send(OnBuildingDestroyed(entity));
+                } else if segment_query.contains(entity) {
+                    segment_event.send(OnRoadDestroyed(entity));
+                } else if inter_query.contains(entity) {
+                    inter_event.send(OnIntersectionDestroyed(entity));
                 }
             }
         }

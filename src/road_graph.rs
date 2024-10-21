@@ -63,12 +63,10 @@ pub fn add_roads_to_graph(
                 }
 
                 for cell in adj_area.iter() {
-                    if let Ok(slot) = grid.entity_at(cell) {
-                        if let Some(adj) = slot {
-                            if let Ok(mut building) = building_query.get_mut(adj) {
-                                segment.dests.insert(adj);
-                                building.roads.insert(entity);
-                            }
+                    if let Ok(Some(adj)) = grid.entity_at(cell) {
+                        if let Ok(mut building) = building_query.get_mut(adj) {
+                            segment.dests.insert(adj);
+                            building.roads.insert(entity);
                         }
                     }
                 }
