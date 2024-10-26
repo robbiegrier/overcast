@@ -1,9 +1,4 @@
-use crate::{
-    grid_area::GridArea,
-    grid_cell::GridCell,
-    road_graph_events::{OnBuildingDestroyed, OnIntersectionDestroyed, OnRoadDestroyed},
-    schedule::UpdateStage,
-};
+use crate::{graph::road_graph_events::*, grid::grid_area::*, grid::grid_cell::*, schedule::UpdateStage};
 use bevy::{prelude::*, utils::HashMap};
 use bevy_infinite_grid::{InfiniteGrid, InfiniteGridBundle};
 use std::{f32::consts::FRAC_PI_2, fmt};

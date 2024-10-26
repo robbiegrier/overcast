@@ -1,6 +1,6 @@
 use crate::{
-    building_tool::Building, grid::Grid, intersection::Intersection, road_graph_events::*, road_segment::RoadSegment,
-    schedule::UpdateStage,
+    graph::road_graph_events::*, grid::grid::Grid, schedule::UpdateStage, types::building::*,
+    types::intersection::Intersection, types::road_segment::RoadSegment,
 };
 use bevy::prelude::*;
 

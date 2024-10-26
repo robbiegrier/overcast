@@ -1,12 +1,8 @@
 use crate::{
-    camera::PlayerCameraController,
-    grid::{Grid, Ground},
-    grid_area::GridArea,
-    road_graph_events::*,
-    schedule::UpdateStage,
-    toolbar::ToolState,
+    graph::road_graph_events::*, graphics::camera::*, grid::grid::*, grid::grid_area::*, schedule::UpdateStage,
+    tools::toolbar::ToolState, types::building::*,
 };
-use bevy::{prelude::*, utils::HashSet};
+use bevy::prelude::*;
 use rand::Rng;
 
 pub struct BuildingToolPlugin;
@@ -21,29 +17,6 @@ impl Plugin for BuildingToolPlugin {
             )
                 .run_if(in_state(ToolState::Building)),
         );
-    }
-}
-
-#[derive(Component, Debug)]
-pub struct Building {
-    pub area: GridArea,
-    pub roads: HashSet<Entity>,
-}
-
-impl Building {
-    pub fn new(area: GridArea) -> Self {
-        Self {
-            area,
-            roads: HashSet::new(),
-        }
-    }
-
-    pub fn area(&self) -> GridArea {
-        self.area
-    }
-
-    pub fn pos(&self) -> Vec3 {
-        self.area.center()
     }
 }
 

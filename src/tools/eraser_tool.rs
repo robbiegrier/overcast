@@ -1,13 +1,6 @@
 use crate::{
-    building_tool::Building,
-    camera::PlayerCameraController,
-    grid::{Grid, Ground},
-    grid_area::GridArea,
-    intersection::Intersection,
-    road_graph_events::*,
-    road_segment::RoadSegment,
-    schedule::UpdateStage,
-    toolbar::ToolState,
+    graph::road_graph_events::*, graphics::camera::*, grid::grid::*, grid::grid_area::*, schedule::UpdateStage,
+    tools::toolbar::ToolState, types::building::*, types::intersection::*, types::road_segment::*,
 };
 use bevy::prelude::*;
 

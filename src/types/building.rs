@@ -1,15 +1,18 @@
-use crate::grid_area::GridArea;
-use bevy::prelude::*;
+use crate::grid::grid_area::*;
+use bevy::{prelude::*, utils::HashSet};
 
 #[derive(Component, Debug)]
-pub struct Intersection {
+pub struct Building {
     pub area: GridArea,
-    pub roads: [Option<Entity>; 4],
+    pub roads: HashSet<Entity>,
 }
 
-impl Intersection {
+impl Building {
     pub fn new(area: GridArea) -> Self {
-        Self { area, roads: [None; 4] }
+        Self {
+            area,
+            roads: HashSet::new(),
+        }
     }
 
     pub fn area(&self) -> GridArea {

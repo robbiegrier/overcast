@@ -1,4 +1,4 @@
-use crate::{grid_area::GridArea, orientation::GAxis};
+use crate::{grid::grid_area::*, grid::orientation::*};
 use bevy::prelude::*;
 
 #[derive(Event, Debug)]

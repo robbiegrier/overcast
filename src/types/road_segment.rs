@@ -1,6 +1,4 @@
-use crate::grid_area::*;
-use crate::grid_cell::*;
-use crate::orientation::GAxis;
+use crate::{grid::grid_area::*, grid::grid_cell::*, grid::orientation::*};
 use bevy::prelude::*;
 use bevy::utils::HashSet;
 

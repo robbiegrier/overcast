@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use crate::grid::*;
+use crate::grid::grid::*;
 use bevy::{
     core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping},
     input::mouse::MouseWheel,

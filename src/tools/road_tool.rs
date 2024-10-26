@@ -1,15 +1,7 @@
 use crate::{
-    camera::PlayerCameraController,
-    grid::{Grid, Ground},
-    grid_area::GridArea,
-    grid_cell::GridCell,
-    intersection::Intersection,
-    orientation::GAxis,
-    road_events::*,
-    road_graph_events::*,
-    road_segment::RoadSegment,
-    schedule::UpdateStage,
-    toolbar::ToolState,
+    graph::road_graph_events::*, graphics::camera::*, grid::grid::*, grid::grid_area::*, grid::grid_cell::*,
+    grid::orientation::*, schedule::UpdateStage, tools::road_events::*, tools::toolbar::ToolState, types::intersection::*,
+    types::road_segment::*,
 };
 use bevy::prelude::*;
 use std::f32::consts::FRAC_PI_2;

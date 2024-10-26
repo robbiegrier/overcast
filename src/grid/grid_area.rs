@@ -1,4 +1,4 @@
-use crate::{grid_cell::GridCell, orientation::GDir};
+use crate::grid::{grid_cell::*, orientation::*};
 use bevy::prelude::*;
 
 #[derive(Copy, Clone, Debug)]

@@ -1,9 +1,5 @@
 use crate::{
-    building_tool::Building,
-    intersection::Intersection,
-    orientation::{GAxis, GDir},
-    road_segment::RoadSegment,
-    road_tool::ROAD_HEIGHT,
+    grid::orientation::*, tools::road_tool::ROAD_HEIGHT, types::building::*, types::intersection::*, types::road_segment::*,
 };
 use bevy::{
     prelude::*,
