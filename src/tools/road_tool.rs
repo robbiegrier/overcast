@@ -34,11 +34,6 @@ impl Plugin for RoadToolPlugin {
     }
 }
 
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-enum RoadToolMode {
-    Spawner,
-}
-
 #[derive(Component, Debug)]
 pub struct RoadTool {
     width: i32,
@@ -46,7 +41,6 @@ pub struct RoadTool {
     drag_start_ground_position: Vec3,
     dragging: bool,
     drag_area: GridArea,
-    mode: RoadToolMode,
     orientation: GAxis,
 }
 
@@ -58,7 +52,6 @@ impl RoadTool {
             drag_start_ground_position: Vec3::ZERO,
             dragging: false,
             drag_area: GridArea::at(Vec3::ZERO, 0, 0),
-            mode: RoadToolMode::Spawner,
             orientation: GAxis::Z,
         }
     }
@@ -172,14 +165,10 @@ fn update_ground_position(
             tool.drag_area = area;
         }
 
-        let mut gizmo_color = match tool.mode {
-            RoadToolMode::Spawner => {
-                if grid_query.single().is_valid_paint_area(area) {
-                    Color::linear_rgba(0.5, 0.0, 0.85, 0.8)
-                } else {
-                    Color::linear_rgba(1.0, 0.0, 0.0, 0.25)
-                }
-            }
+        let mut gizmo_color = if grid_query.single().is_valid_paint_area(area) {
+            Color::linear_rgba(0.5, 0.0, 0.85, 0.8)
+        } else {
+            Color::linear_rgba(1.0, 0.0, 0.0, 0.25)
         };
 
         if controller.is_moving() {
@@ -235,24 +224,20 @@ fn handle_action(
     let mut grid = grid_query.single_mut();
 
     if mouse.just_pressed(MouseButton::Left) && !keyboard.any_pressed([KeyCode::AltLeft, KeyCode::ControlLeft]) {
-        match tool.mode {
-            RoadToolMode::Spawner => {
-                if !tool.dragging {
-                    tool.dragging = true;
-                    tool.drag_start_ground_position = tool.ground_position;
-                } else {
-                    handle_end_drag(
-                        &mut tool,
-                        &mut grid,
-                        segment_query,
-                        creator,
-                        splitter,
-                        extender,
-                        intersector,
-                        bridge,
-                    );
-                }
-            }
+        if !tool.dragging {
+            tool.dragging = true;
+            tool.drag_start_ground_position = tool.ground_position;
+        } else {
+            handle_end_drag(
+                &mut tool,
+                &mut grid,
+                segment_query,
+                creator,
+                splitter,
+                extender,
+                intersector,
+                bridge,
+            );
         }
     }
 
