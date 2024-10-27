@@ -19,3 +19,12 @@
 
 ### search algorithm
 - return path from one building to another using the roadmap
+
+### vehicle ai
+- spawn at random building
+- calculate path to random destination building
+- on road segments, straight line in desired direction
+    - start with one lane and no collision
+- on intersections, straight, turn, or uturn for desired new road segment
+    - passing cars just go through each other
+- on final segment, delete when adjacent to destination building

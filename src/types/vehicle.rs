@@ -118,7 +118,6 @@ fn update_vehicles(
             if let Ok(building) = building_query.get(next) {
                 if let Ok(segment) = segment_query.get(curr) {
                     let approach_dir = direction_to_area(segment, building.area());
-                    // goal = get_building_stopping_pos(building, segment, transform.translation);
                     let target = building.area.center().with_y(transform.translation.y);
                     goal = segment.clamp_to_lane(approach_dir, 0, target);
 

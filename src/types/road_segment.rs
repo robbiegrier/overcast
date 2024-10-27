@@ -70,7 +70,8 @@ impl RoadSegment {
     pub fn clamp_to_lane(&self, dir: GDir, num: i32, pos: Vec3) -> Vec3 {
         let cmax = self.area.max.max_corner();
         let cmin = self.area.min.min_corner();
-        let lane_stride = 0.5 * self.num_lanes() as f32 * (num + 1) as f32;
+        let lane_id = (num + 1).clamp(1, self.num_lanes());
+        let lane_stride = 0.5 * self.num_lanes() as f32 * lane_id as f32;
 
         if self.orientation == GAxis::Z {
             if dir == GDir::North {
