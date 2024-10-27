@@ -43,6 +43,10 @@ impl RoadSegment {
         }
     }
 
+    pub fn num_lanes(&self) -> i32 {
+        self.drive_width() / 2
+    }
+
     pub fn get_intersection_area(&self, turn_to_area: GridArea) -> GridArea {
         match self.orientation {
             GAxis::Z => GridArea::new(
@@ -60,6 +64,26 @@ impl RoadSegment {
         match self.orientation {
             GAxis::Z => start_pos.with_x(self.area.center().x),
             GAxis::X => start_pos.with_z(self.area.center().z),
+        }
+    }
+
+    pub fn clamp_to_lane(&self, dir: GDir, num: i32, pos: Vec3) -> Vec3 {
+        let cmax = self.area.max.max_corner();
+        let cmin = self.area.min.min_corner();
+        let lane_stride = 0.5 * self.num_lanes() as f32 * (num + 1) as f32;
+
+        if self.orientation == GAxis::Z {
+            if dir == GDir::North {
+                pos.with_x(cmin.x + lane_stride).with_z(pos.z.clamp(cmin.z, cmax.z))
+            } else {
+                pos.with_x(cmax.x - lane_stride).with_z(pos.z.clamp(cmin.z, cmax.z))
+            }
+        } else {
+            if dir == GDir::East {
+                pos.with_z(cmin.z + lane_stride).with_x(pos.x.clamp(cmin.x, cmax.x))
+            } else {
+                pos.with_z(cmax.z - lane_stride).with_x(pos.x.clamp(cmin.x, cmax.x))
+            }
         }
     }
 }

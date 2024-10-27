@@ -1,16 +1,17 @@
 use crate::{
-    grid::orientation::*, tools::road_tool::ROAD_HEIGHT, types::building::*, types::intersection::*, types::road_segment::*,
+    grid::{grid_area::GridArea, orientation::*},
+    tools::road_tool::ROAD_HEIGHT,
+    types::{building::*, intersection::*, road_segment::*},
 };
 use bevy::{
     prelude::*,
     utils::{HashMap, HashSet},
 };
-use if_chain::if_chain;
 use rand::seq::IteratorRandom;
 
-const VEHICLE_HEIGHT: f32 = 0.333;
+const VEHICLE_HEIGHT: f32 = 0.25;
 const VEHICLE_LENGTH: f32 = VEHICLE_HEIGHT * 2.0;
-const VEHICLE_MAX_SPEED: f32 = 2.0;
+const VEHICLE_MAX_SPEED: f32 = 1.5;
 
 pub struct VehiclePlugin;
 
@@ -54,17 +55,17 @@ fn get_step_type(step_entity: Entity, dest_query: &Query<&Building>, edge_query:
     }
 }
 
-fn direction_to_intersection(segment: &RoadSegment, intersection: &Intersection) -> GDir {
+fn direction_to_area(segment: &RoadSegment, area: GridArea) -> GDir {
     match segment.orientation {
         GAxis::Z => {
-            if intersection.area.center().z > segment.area.center().z {
+            if area.center().z > segment.area.center().z {
                 GDir::North
             } else {
                 GDir::South
             }
         }
         GAxis::X => {
-            if intersection.area.center().x > segment.area.center().x {
+            if area.center().x > segment.area.center().x {
                 GDir::West
             } else {
                 GDir::East
@@ -73,35 +74,12 @@ fn direction_to_intersection(segment: &RoadSegment, intersection: &Intersection)
     }
 }
 
-fn get_intersection_stopping_pos(intersection: &Intersection, direction: GDir, start_pos: Vec3) -> Vec3 {
+fn get_intersection_goal(intersection: &Intersection, direction: GDir, start_pos: Vec3) -> Vec3 {
     match direction {
-        GDir::North => {
-            let offset =
-                intersection.area.center() + Vec3::new(0.0, 0.0, (intersection.area.dimensions().y + VEHICLE_LENGTH) / 2.0);
-            start_pos.with_z(offset.z)
-        }
-        GDir::South => {
-            let offset =
-                intersection.area.center() + Vec3::new(0.0, 0.0, -(intersection.area.dimensions().y + VEHICLE_LENGTH) / 2.0);
-            start_pos.with_z(offset.z)
-        }
-        GDir::East => {
-            let offset =
-                intersection.area.center() + Vec3::new(-(intersection.area.dimensions().y + VEHICLE_LENGTH) / 2.0, 0.0, 0.0);
-            start_pos.with_x(offset.x)
-        }
-        GDir::West => {
-            let offset =
-                intersection.area.center() + Vec3::new((intersection.area.dimensions().y + VEHICLE_LENGTH) / 2.0, 0.0, 0.0);
-            start_pos.with_x(offset.x)
-        }
-    }
-}
-
-fn get_building_stopping_pos(building: &Building, segment: &RoadSegment, start_pos: Vec3) -> Vec3 {
-    match segment.orientation {
-        GAxis::Z => start_pos.with_z(building.area.center().z),
-        GAxis::X => start_pos.with_x(building.area.center().x),
+        GDir::North => intersection.area.center().with_x(start_pos.x).with_y(start_pos.y),
+        GDir::South => intersection.area.center().with_x(start_pos.x).with_y(start_pos.y),
+        GDir::East => intersection.area.center().with_z(start_pos.z).with_y(start_pos.y),
+        GDir::West => intersection.area.center().with_z(start_pos.z).with_y(start_pos.y),
     }
 }
 
@@ -126,77 +104,94 @@ fn update_vehicles(
         let curr_type = get_step_type(curr, &building_query, &segment_query);
         let next_type = get_step_type(next, &building_query, &segment_query);
 
+        let mut goal = transform.translation;
+        let mut move_goal = transform.translation;
+
         if curr_type == StepType::Building && next_type == StepType::Road {
             if let Ok(segment) = segment_query.get(next) {
                 let lane_pos = segment.get_lane_pos(transform.translation);
                 transform.translation = lane_pos;
                 vehicle.path_index += 1;
-                println!("start on segement");
                 return;
             }
         } else if curr_type == StepType::Road && next_type == StepType::Building {
-            if_chain! {
-                if let Ok(building) = building_query.get(next);
-                if let Ok(segment) = segment_query.get(curr);
-                then {
-                    let stopping_pos = get_building_stopping_pos(building, segment, transform.translation);
-                    gizmos.line(transform.translation, stopping_pos, Color::linear_rgb(0.0, 1.0, 1.0));
-                    if transform.translation.distance(stopping_pos) < 0.01 {
+            if let Ok(building) = building_query.get(next) {
+                if let Ok(segment) = segment_query.get(curr) {
+                    let approach_dir = direction_to_area(segment, building.area());
+                    // goal = get_building_stopping_pos(building, segment, transform.translation);
+                    let target = building.area.center().with_y(transform.translation.y);
+                    goal = segment.clamp_to_lane(approach_dir, 0, target);
+
+                    let lane_pos = segment.clamp_to_lane(approach_dir, 0, transform.translation);
+                    let proj = goal + (transform.translation - goal).project_onto(lane_pos - goal);
+                    let interp_proj = proj + (goal - proj).normalize() * 0.5;
+                    move_goal = interp_proj;
+
+                    if transform.translation.distance(goal) < 0.1 {
                         vehicle.path_index += 1;
-                        println!("reached building, done");
-                        commands.entity(entity).despawn_recursive();
                         return;
                     }
-
-                    transform.look_at(stopping_pos, Vec3::new(0.0, 1.0, 0.0));
-                    let dir = (stopping_pos - transform.translation).with_y(0.0).normalize();
-                    vehicle.speed = vehicle.speed.lerp(VEHICLE_MAX_SPEED, time.delta_seconds() * 0.1);
-                    transform.translation += vehicle.speed * dir * time.delta_seconds();
                 }
             }
         } else if curr_type == StepType::Road && next_type == StepType::Intersection {
-            if_chain! {
-                if let Ok(intersection) = intersection_query.get(next);
-                if let Ok(segment) = segment_query.get(curr);
-                then {
-                    let approach_dir = direction_to_intersection(segment, intersection).inverse();
-                    let stopping_pos = get_intersection_stopping_pos(intersection, approach_dir, transform.translation);
-                    gizmos.line(transform.translation, stopping_pos, Color::linear_rgb(1.0, 0.0, 0.0));
-                    if transform.translation.distance(stopping_pos) < 0.01 {
+            if let Ok(intersection) = intersection_query.get(next) {
+                if let Ok(segment) = segment_query.get(curr) {
+                    let approach_dir = direction_to_area(segment, intersection.area());
+                    goal = get_intersection_goal(intersection, approach_dir, transform.translation);
+
+                    let lane_pos = segment.clamp_to_lane(approach_dir, 0, transform.translation);
+                    let proj = goal + (transform.translation - goal).project_onto(lane_pos - goal);
+                    let interp_proj = proj + (goal - proj).normalize() * 0.5;
+                    move_goal = interp_proj;
+
+                    if intersection.area.contains_point_3d(transform.translation) {
                         vehicle.path_index += 1;
-                        println!("reached start intersect pos");
                         return;
                     }
-
-                    transform.look_at(stopping_pos, Vec3::new(0.0, 1.0, 0.0));
-                    let dir = (stopping_pos - transform.translation).with_y(0.0).normalize();
-                    vehicle.speed = vehicle.speed.lerp(VEHICLE_MAX_SPEED, time.delta_seconds() * 0.1);
-                    transform.translation += vehicle.speed * dir * time.delta_seconds();
                 }
             }
         } else if curr_type == StepType::Intersection {
-            if_chain! {
-                if let Ok(intersection) = intersection_query.get(curr);
-                if let Ok(next_segment) = segment_query.get(next);
-                then {
-                    let next_dir = direction_to_intersection(next_segment, intersection).inverse();
-                    let stopping_pos = get_intersection_stopping_pos(intersection, next_dir, transform.translation);
-                    let stopping_pos = next_segment.get_lane_pos(stopping_pos).with_y(transform.translation.y);
-                    gizmos.line(transform.translation, stopping_pos, Color::linear_rgb(1.0, 1.0, 0.0));
+            if let Ok(intersection) = intersection_query.get(curr) {
+                if let Ok(next_segment) = segment_query.get(next) {
+                    let approach_dir = direction_to_area(next_segment, intersection.area()).inverse();
+                    goal = next_segment.clamp_to_lane(approach_dir, 0, transform.translation);
 
-                    if transform.translation.distance(stopping_pos) < 0.01 {
-                         vehicle.path_index += 1;
-                         println!("reached end intersect pos");
-                         return;
+                    let interp_proj = transform.translation + (goal - transform.translation).normalize() * 0.5;
+                    move_goal = interp_proj;
+
+                    if next_segment.area.contains_point_3d(transform.translation) {
+                        vehicle.path_index += 1;
+                        return;
                     }
-
-                    transform.look_at(stopping_pos, Vec3::new(0.0, 1.0, 0.0));
-                    let dir = (stopping_pos - transform.translation).with_y(0.0).normalize();
-                    vehicle.speed = vehicle.speed.lerp(VEHICLE_MAX_SPEED, time.delta_seconds() * 0.1);
-                    transform.translation += vehicle.speed * dir * time.delta_seconds();
                 }
             }
         }
+
+        gizmos.line(transform.translation, goal, Color::linear_rgb(1.0, 1.0, 0.0));
+        gizmos.line(transform.translation, move_goal, Color::linear_rgb(0.0, 1.0, 0.0));
+        // gizmos.arrow(
+        //     transform.translation,
+        //     transform.translation + transform.forward().as_vec3(),
+        //     Color::linear_rgb(1.0, 0.0, 0.0),
+        // );
+
+        let to_move_goal = move_goal.with_y(0.0) - transform.translation.with_y(0.0);
+        let dir_to_move_goal = to_move_goal.normalize();
+        let rot_speed = ((goal.distance(transform.translation) * 25.0).recip()).max(1.0);
+        let dot = dir_to_move_goal.dot(transform.left().as_vec3());
+        if dot > 0.01 {
+            let scalar = dir_to_move_goal.angle_between(transform.right().as_vec3());
+            transform.rotate_y(rot_speed * scalar * time.delta_seconds());
+        } else if dot < -0.01 {
+            let scalar = dir_to_move_goal.angle_between(transform.left().as_vec3());
+            transform.rotate_y(-rot_speed * scalar * time.delta_seconds());
+        } else {
+            transform.look_at(move_goal, Vec3::new(0.0, 1.0, 0.0));
+        }
+
+        vehicle.speed = vehicle.speed.lerp(VEHICLE_MAX_SPEED, time.delta_seconds() * 0.5);
+        let translate_dir = transform.forward().as_vec3();
+        transform.translation += vehicle.speed * translate_dir * time.delta_seconds();
     }
 }
 

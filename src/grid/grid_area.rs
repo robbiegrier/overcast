@@ -64,6 +64,13 @@ impl GridArea {
         }
     }
 
+    pub fn contains_point_3d(&self, point: Vec3) -> bool {
+        self.min.min_corner().x <= point.x
+            && self.max.max_corner().x >= point.x
+            && self.min.min_corner().z <= point.z
+            && self.max.max_corner().z >= point.z
+    }
+
     pub fn union(&self, other: GridArea) -> GridArea {
         GridArea {
             min: GridCell {
