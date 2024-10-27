@@ -7,6 +7,7 @@ use bevy::{
     prelude::*,
     utils::{HashMap, HashSet},
 };
+use bevy_mod_raycast::prelude::*;
 use rand::seq::IteratorRandom;
 
 const VEHICLE_HEIGHT: f32 = 0.25;
@@ -17,9 +18,14 @@ pub struct VehiclePlugin;
 
 impl Plugin for VehiclePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (spawn_vehicle, update_vehicles, visualize_path));
+        app.add_plugins(DeferredRaycastingPlugin::<VehicleRaycastSet>::default())
+            .insert_resource(RaycastPluginState::<VehicleRaycastSet>::default().with_debug_cursor())
+            .add_systems(Update, (spawn_vehicle, update_vehicles, visualize_path));
     }
 }
+
+#[derive(Reflect)]
+struct VehicleRaycastSet;
 
 #[derive(Component, Debug)]
 pub struct Vehicle {
@@ -74,6 +80,25 @@ fn direction_to_area(segment: &RoadSegment, area: GridArea) -> GDir {
     }
 }
 
+fn direction_to_building(segment: &RoadSegment, building: &Building, pos: Vec3) -> GDir {
+    match segment.orientation {
+        GAxis::Z => {
+            if building.area.center().z > pos.z {
+                GDir::North
+            } else {
+                GDir::South
+            }
+        }
+        GAxis::X => {
+            if building.area.center().x > pos.x {
+                GDir::West
+            } else {
+                GDir::East
+            }
+        }
+    }
+}
+
 fn get_intersection_goal(intersection: &Intersection, direction: GDir, start_pos: Vec3) -> Vec3 {
     match direction {
         GDir::North => intersection.area.center().with_x(start_pos.x).with_y(start_pos.y),
@@ -85,14 +110,14 @@ fn get_intersection_goal(intersection: &Intersection, direction: GDir, start_pos
 
 fn update_vehicles(
     mut commands: Commands,
-    mut vehicle_query: Query<(Entity, &mut Vehicle, &mut Transform)>,
+    mut vehicle_query: Query<(Entity, &mut Vehicle, &mut Transform, &RaycastSource<VehicleRaycastSet>)>,
     segment_query: Query<&RoadSegment>,
     intersection_query: Query<&Intersection>,
     building_query: Query<&Building>,
     time: Res<Time>,
     mut gizmos: Gizmos,
 ) {
-    for (entity, mut vehicle, mut transform) in &mut vehicle_query {
+    for (entity, mut vehicle, mut transform, raycast) in &mut vehicle_query {
         if vehicle.path_index >= vehicle.path.len() - 1 {
             commands.entity(entity).despawn_recursive();
             return;
@@ -117,7 +142,7 @@ fn update_vehicles(
         } else if curr_type == StepType::Road && next_type == StepType::Building {
             if let Ok(building) = building_query.get(next) {
                 if let Ok(segment) = segment_query.get(curr) {
-                    let approach_dir = direction_to_area(segment, building.area());
+                    let approach_dir = direction_to_building(segment, building, transform.translation);
                     let target = building.area.center().with_y(transform.translation.y);
                     goal = segment.clamp_to_lane(approach_dir, 0, target);
 
@@ -126,7 +151,7 @@ fn update_vehicles(
                     let interp_proj = proj + (goal - proj).normalize() * 0.5;
                     move_goal = interp_proj;
 
-                    if transform.translation.distance(goal) < 0.1 {
+                    if transform.translation.distance(goal) < 1.0 {
                         vehicle.path_index += 1;
                         return;
                     }
@@ -189,6 +214,20 @@ fn update_vehicles(
         }
 
         vehicle.speed = vehicle.speed.lerp(VEHICLE_MAX_SPEED, time.delta_seconds() * 0.5);
+
+        let slow_dist = 2.0;
+        let stop_dist = 1.0;
+        if let Some((_, hit)) = raycast.get_nearest_intersection() {
+            if hit.distance() < slow_dist {
+                vehicle.speed -= (slow_dist - hit.distance()).max(0.0) * time.delta_seconds();
+                vehicle.speed = vehicle.speed.max(0.0);
+            }
+
+            if hit.distance() < stop_dist {
+                vehicle.speed = 0.0;
+            }
+        }
+
         let translate_dir = transform.forward().as_vec3();
         transform.translation += vehicle.speed * translate_dir * time.delta_seconds();
     }
@@ -311,6 +350,8 @@ fn spawn_vehicle(
                     ..default()
                 },
                 Vehicle::new(path),
+                RaycastMesh::<VehicleRaycastSet>::default(),
+                RaycastSource::<VehicleRaycastSet>::new_transform_empty(),
             ));
         }
     }
