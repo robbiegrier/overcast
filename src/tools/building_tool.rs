@@ -9,13 +9,16 @@ pub struct BuildingToolPlugin;
 
 impl Plugin for BuildingToolPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, spawn_tool).add_systems(
+        app.add_event::<RequestBuilding>().add_systems(Startup, spawn_tool).add_systems(
             Update,
             (
-                (update_ground_position).in_set(UpdateStage::UpdateView),
-                (adjust_tool_size, handle_tool_action).in_set(UpdateStage::UserInput),
-            )
-                .run_if(in_state(ToolState::Building)),
+                (
+                    (update_ground_position).in_set(UpdateStage::UpdateView),
+                    (adjust_tool_size, handle_tool_action).in_set(UpdateStage::UserInput),
+                )
+                    .run_if(in_state(ToolState::Building)),
+                (spawn_buildings).in_set(UpdateStage::Spawning),
+            ),
         );
     }
 }
@@ -32,6 +35,17 @@ impl BuildingTool {
             dimensions: IVec2::ONE,
             ground_position: Vec3::ZERO,
         }
+    }
+}
+
+#[derive(Event, Debug)]
+pub struct RequestBuilding {
+    pub area: GridArea,
+}
+
+impl RequestBuilding {
+    pub fn new(area: GridArea) -> Self {
+        Self { area }
     }
 }
 
@@ -121,47 +135,45 @@ fn adjust_tool_size(mut query: Query<&mut BuildingTool>, keyboard: Res<ButtonInp
 }
 
 fn handle_tool_action(
-    commands: Commands,
     query: Query<&mut BuildingTool>,
-    mut grid_query: Query<&mut Grid>,
     mouse: Res<ButtonInput<MouseButton>>,
     keyboard: Res<ButtonInput<KeyCode>>,
-    meshes: ResMut<Assets<Mesh>>,
-    materials: ResMut<Assets<StandardMaterial>>,
-    event: EventWriter<OnBuildingSpawned>,
+    mut builder: EventWriter<RequestBuilding>,
 ) {
     let tool = query.single();
-    let mut grid = grid_query.single_mut();
 
     if mouse.just_pressed(MouseButton::Left) && !keyboard.any_pressed([KeyCode::AltLeft, KeyCode::ControlLeft]) {
-        place_building(commands, tool, &mut grid, meshes, materials, event);
+        let area = GridArea::at(tool.ground_position, tool.dimensions.x, tool.dimensions.y);
+        builder.send(RequestBuilding::new(area));
     }
 }
 
-fn place_building(
+fn spawn_buildings(
     mut commands: Commands,
-    tool: &BuildingTool,
-    grid: &mut Grid,
+    mut grid_query: Query<&mut Grid>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut event: EventWriter<OnBuildingSpawned>,
+    mut builder: EventReader<RequestBuilding>,
 ) {
-    let area = GridArea::at(tool.ground_position, tool.dimensions.x, tool.dimensions.y);
+    let mut grid = grid_query.single_mut();
 
-    let rheight = rand::thread_rng().gen_range(0.5..6.0);
-    let rgray = rand::thread_rng().gen_range(0.05..0.25);
-    let crop = 0.5;
+    for &RequestBuilding { area } in builder.read() {
+        let rheight = rand::thread_rng().gen_range(0.5..6.0);
+        let rgray = rand::thread_rng().gen_range(0.05..0.25);
+        let crop = 0.5;
 
-    if grid.is_valid_paint_area(area) {
-        let model = PbrBundle {
-            mesh: meshes.add(Cuboid::new(area.dimensions().x - crop, rheight, area.dimensions().y - crop)),
-            material: materials.add(Color::linear_rgb(rgray, rgray, rgray)),
-            transform: Transform::from_translation(area.center().with_y(rheight / 2.0)),
-            ..default()
-        };
+        if grid.is_valid_paint_area(area) {
+            let model = PbrBundle {
+                mesh: meshes.add(Cuboid::new(area.dimensions().x - crop, rheight, area.dimensions().y - crop)),
+                material: materials.add(Color::linear_rgb(rgray, rgray, rgray)),
+                transform: Transform::from_translation(area.center().with_y(rheight / 2.0)),
+                ..default()
+            };
 
-        let entity = commands.spawn((model, Building::new(area))).id();
-        grid.mark_area_occupied(area, entity);
-        event.send(OnBuildingSpawned(entity));
+            let entity = commands.spawn((model, Building::new(area))).id();
+            grid.mark_area_occupied(area, entity);
+            event.send(OnBuildingSpawned(entity));
+        }
     }
 }

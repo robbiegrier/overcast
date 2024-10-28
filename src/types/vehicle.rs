@@ -1,4 +1,5 @@
 use crate::{
+    assets::SceneAssets,
     grid::{grid_area::GridArea, orientation::*},
     schedule::UpdateStage,
     tools::road_tool::ROAD_HEIGHT,
@@ -15,6 +16,7 @@ const VEHICLE_HEIGHT: f32 = 0.25;
 const VEHICLE_LENGTH: f32 = VEHICLE_HEIGHT * 2.0;
 const VEHICLE_MAX_SPEED: f32 = 1.5;
 const MAX_SPEED_VARIATION: f32 = 0.5;
+const SPAWN_TIME_SECONDS: f32 = 1.0;
 
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AiVisualizationState {
@@ -30,14 +32,17 @@ impl Plugin for VehiclePlugin {
         app.add_plugins(DeferredRaycastingPlugin::<VehicleRaycastSet>::default())
             .insert_resource(RaycastPluginState::<VehicleRaycastSet>::default())
             .init_state::<AiVisualizationState>()
+            .add_event::<RequestVehicleSpawn>()
+            .insert_resource(SpawnTimer {
+                timer: Timer::from_seconds(SPAWN_TIME_SECONDS, TimerMode::Repeating),
+            })
             .add_systems(
                 Update,
                 (
-                    (toggle_ai_vizualization).in_set(UpdateStage::UserInput),
-                    spawn_vehicle,
-                    update_vehicles,
-                    update_speed.after(update_vehicles),
-                    (execute_movement, execute_turning).after(update_speed),
+                    (toggle_ai_vizualization, spawn_vehicle_on_key_press, spawn_vehicle_on_timer)
+                        .in_set(UpdateStage::UserInput),
+                    (spawn_vehicle).in_set(UpdateStage::Spawning),
+                    (update_vehicles, update_speed, execute_movement, execute_turning).in_set(UpdateStage::AiBehavior),
                     (visualize_path, visualize_vehicle_ai)
                         .in_set(UpdateStage::Visualize)
                         .run_if(in_state(AiVisualizationState::Visualize)),
@@ -144,10 +149,10 @@ fn execute_turning(mut vehicle_query: Query<(&Vehicle, &mut Transform)>, time: R
 
         if dot > 0.01 {
             let scalar = follow_dir.angle_between(transform.right().as_vec3());
-            transform.rotate_y(scalar * time.delta_seconds());
+            transform.rotate_y(1.0 * scalar * time.delta_seconds());
         } else if dot < -0.01 {
             let scalar = follow_dir.angle_between(transform.left().as_vec3());
-            transform.rotate_y(scalar * time.delta_seconds());
+            transform.rotate_y(-1.0 * scalar * time.delta_seconds());
         } else {
             transform.look_at(vehicle.follow, Vec3::new(0.0, 1.0, 0.0));
         }
@@ -289,17 +294,42 @@ fn update_vehicles(
     }
 }
 
+#[derive(Event, Debug)]
+pub struct RequestVehicleSpawn;
+
+#[derive(Resource, Debug)]
+pub struct SpawnTimer {
+    timer: Timer,
+}
+
+fn spawn_vehicle_on_key_press(keyboard: Res<ButtonInput<KeyCode>>, mut request: EventWriter<RequestVehicleSpawn>) {
+    if keyboard.just_pressed(KeyCode::KeyP) {
+        request.send(RequestVehicleSpawn);
+    }
+}
+
+fn spawn_vehicle_on_timer(
+    // mut request: EventWriter<RequestVehicleSpawn>,
+    time: Res<Time>,
+    mut spawn_timer: ResMut<SpawnTimer>,
+) {
+    spawn_timer.timer.tick(time.delta());
+    if spawn_timer.timer.just_finished() {
+        // request.send(RequestVehicleSpawn);
+    }
+}
+
 fn spawn_vehicle(
-    keyboard: Res<ButtonInput<KeyCode>>,
     building_query: Query<(Entity, &Building)>,
     segment_query: Query<(Entity, &RoadSegment)>,
     inter_query: Query<(Entity, &Intersection)>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut request: EventReader<RequestVehicleSpawn>,
+    mut scene_assets: ResMut<SceneAssets>,
 ) {
-    if keyboard.just_pressed(KeyCode::KeyP) {
-        println!("generating debug path");
+    for _ in request.read() {
         let mut rng = rand::thread_rng();
         let choose = building_query.iter().choose_multiple(&mut rng, 2);
 
@@ -310,8 +340,6 @@ fn spawn_vehicle(
 
         let (start_entity, _start) = choose[0];
         let (end_entity, _end) = choose[1];
-
-        println!("start: {:?}; end: {:?}", start_entity, end_entity);
 
         let mut frontier = Vec::<Entity>::new();
         let mut visited = HashSet::<Entity>::new();
@@ -325,8 +353,6 @@ fn spawn_vehicle(
             visited.insert(curr);
             // if curr is destination
             if let Ok((e, dest)) = building_query.get(curr) {
-                println!("curr is destination");
-
                 if e == end_entity {
                     path_found = true;
                     break;
@@ -340,8 +366,6 @@ fn spawn_vehicle(
             }
             // if curr is edge
             else if let Ok((_e, edge)) = segment_query.get(curr) {
-                println!("curr is edge");
-
                 // if end goal is a destination here, go to it
                 if edge.dests.contains(&end_entity) {
                     frontier.push(end_entity);
@@ -369,7 +393,6 @@ fn spawn_vehicle(
             }
             // if curr is a node, add connected edges
             else if let Ok((_e, node)) = inter_query.get(curr) {
-                println!("curr is node");
                 for slot in &node.roads {
                     if let Some(road) = slot {
                         if !visited.contains(road) {
@@ -382,13 +405,10 @@ fn spawn_vehicle(
         }
 
         if path_found {
-            println!("a path was found!");
             let mut path = Vec::<Entity>::new();
             let mut curr = end_entity;
 
             while curr != start_entity {
-                println!("path: {:?}", curr);
-
                 path.push(curr);
                 curr = parent_map[&curr];
             }
@@ -402,7 +422,7 @@ fn spawn_vehicle(
             commands.spawn((
                 PbrBundle {
                     mesh: meshes.add(Cuboid::new(VEHICLE_HEIGHT, VEHICLE_HEIGHT, VEHICLE_LENGTH)),
-                    material: materials.add(Color::linear_rgb(1.0, 0.8, 0.1)),
+                    material: materials.add(Color::linear_rgb(0.5, 0.5, 0.3)),
                     transform: Transform::from_translation(start_location),
                     ..default()
                 },

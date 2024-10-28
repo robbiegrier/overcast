@@ -1,7 +1,8 @@
 use crate::grid::{grid_cell::*, orientation::*};
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct GridArea {
     pub min: GridCell,
     pub max: GridCell,

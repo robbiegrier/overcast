@@ -7,7 +7,7 @@ impl Plugin for SchedulePlugin {
         app.configure_sets(
             Update,
             (
-                UpdateStage::UpdateView,
+                (UpdateStage::UpdateView, UpdateStage::AiBehavior),
                 UpdateStage::UserInput,
                 UpdateStage::HighLevelSideEffects,
                 UpdateStage::SoftDestroy,
@@ -29,6 +29,7 @@ impl Plugin for SchedulePlugin {
 #[derive(Debug, Hash, PartialEq, Eq, Clone, SystemSet)]
 pub enum UpdateStage {
     UpdateView,
+    AiBehavior,
     UserInput,
     HighLevelSideEffects,
     SoftDestroy,

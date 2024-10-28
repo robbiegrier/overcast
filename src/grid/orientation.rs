@@ -1,4 +1,6 @@
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Default)]
+use serde::{Deserialize, Serialize};
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
 pub enum GAxis {
     #[default]
     X,

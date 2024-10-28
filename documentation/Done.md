@@ -28,3 +28,8 @@
 - on intersections, straight, turn, or uturn for desired new road segment
     - passing cars just go through each other
 - on final segment, delete when adjacent to destination building
+
+### speed limiter
+- detect vehicle in front
+- limit speed so that you don't collide with the vehicle in front
+- vehicles have random speed offsets to test effect

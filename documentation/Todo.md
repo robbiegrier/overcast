@@ -1,10 +1,8 @@
 
 ## Todo
 
-### speed limiter
-- detect vehicle in front
-- limit speed so that you don't collide with the vehicle in front
-- vehicles have random speed offsets to test effect
+### initial game state
+- spawn some roads and buildings on startup
 
 ### lane change
 - change lane on large road based on next intersection turn direction
