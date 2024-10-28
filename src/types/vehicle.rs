@@ -1,5 +1,4 @@
 use crate::{
-    assets::SceneAssets,
     grid::{grid_area::GridArea, orientation::*},
     schedule::UpdateStage,
     tools::road_tool::ROAD_HEIGHT,
@@ -327,7 +326,6 @@ fn spawn_vehicle(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut request: EventReader<RequestVehicleSpawn>,
-    mut scene_assets: ResMut<SceneAssets>,
 ) {
     for _ in request.read() {
         let mut rng = rand::thread_rng();

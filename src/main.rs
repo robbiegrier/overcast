@@ -1,4 +1,3 @@
-mod assets;
 mod graph;
 mod graphics;
 mod grid;
@@ -16,13 +15,12 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(schedule::SchedulePlugin)
-        .add_plugins(assets::AssetLoaderPlugin)
         .add_plugins(graph::road_graph::RoadGraphPlugin)
         .add_plugins(graphics::camera::CameraPlugin)
         .add_plugins(grid::grid::GridPlugin)
         .add_plugins(types::vehicle::VehiclePlugin)
         .add_plugins(tools::toolbar::ToolbarPlugin)
         .add_plugins(graphics::weather::WeatherPlugin)
-        .add_plugins(save::save_to_disk::SavePlugin)
+        .add_plugins(save::save::SavePlugin)
         .run();
 }
