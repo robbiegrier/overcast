@@ -1,9 +1,6 @@
 
 ## Todo
 
-### initial game state
-- spawn some roads and buildings on startup
-
 ### lane change
 - change lane on large road based on next intersection turn direction
 - interpolate left or right

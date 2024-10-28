@@ -15,12 +15,13 @@ const VEHICLE_HEIGHT: f32 = 0.25;
 const VEHICLE_LENGTH: f32 = VEHICLE_HEIGHT * 2.0;
 const VEHICLE_MAX_SPEED: f32 = 1.5;
 const MAX_SPEED_VARIATION: f32 = 0.5;
-const SPAWN_TIME_SECONDS: f32 = 1.0;
+const SPAWN_TIME_SECONDS: f32 = 0.25;
+const INTERSECTION_OFFSET: f32 = 0.2;
 
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum AiVisualizationState {
-    #[default]
     Visualize,
+    #[default]
     Hide,
 }
 
@@ -279,6 +280,7 @@ fn update_vehicles(
                 if let Ok(next_segment) = segment_query.get(next) {
                     let approach_dir = direction_to_area(next_segment, intersection.area()).inverse();
                     vehicle.checkpoint = next_segment.clamp_to_lane(approach_dir, 0, transform.translation);
+                    vehicle.checkpoint += approach_dir.as_vec3() * INTERSECTION_OFFSET;
 
                     let interp_proj = transform.translation + (vehicle.checkpoint - transform.translation).normalize() * 0.5;
                     vehicle.follow = interp_proj;
@@ -308,13 +310,16 @@ fn spawn_vehicle_on_key_press(keyboard: Res<ButtonInput<KeyCode>>, mut request: 
 }
 
 fn spawn_vehicle_on_timer(
-    // mut request: EventWriter<RequestVehicleSpawn>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut request: EventWriter<RequestVehicleSpawn>,
     time: Res<Time>,
     mut spawn_timer: ResMut<SpawnTimer>,
 ) {
-    spawn_timer.timer.tick(time.delta());
-    if spawn_timer.timer.just_finished() {
-        // request.send(RequestVehicleSpawn);
+    if keyboard.pressed(KeyCode::KeyL) {
+        spawn_timer.timer.tick(time.delta());
+        if spawn_timer.timer.just_finished() {
+            request.send(RequestVehicleSpawn);
+        }
     }
 }
 

@@ -147,7 +147,7 @@ fn spawn_ground(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut ma
 
 fn spawn_grid_visualization(mut commands: Commands) {
     commands.spawn(InfiniteGridBundle {
-        visibility: Visibility::Visible,
+        visibility: Visibility::Hidden,
         ..default()
     });
 }
