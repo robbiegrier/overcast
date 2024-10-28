@@ -1,5 +1,6 @@
 use crate::{
     grid::{grid_area::GridArea, orientation::*},
+    schedule::UpdateStage,
     tools::road_tool::ROAD_HEIGHT,
     types::{building::*, intersection::*, road_segment::*},
 };
@@ -8,19 +9,40 @@ use bevy::{
     utils::{HashMap, HashSet},
 };
 use bevy_mod_raycast::prelude::*;
-use rand::seq::IteratorRandom;
+use rand::{seq::IteratorRandom, Rng};
 
 const VEHICLE_HEIGHT: f32 = 0.25;
 const VEHICLE_LENGTH: f32 = VEHICLE_HEIGHT * 2.0;
 const VEHICLE_MAX_SPEED: f32 = 1.5;
+const MAX_SPEED_VARIATION: f32 = 0.5;
+
+#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum AiVisualizationState {
+    #[default]
+    Visualize,
+    Hide,
+}
 
 pub struct VehiclePlugin;
 
 impl Plugin for VehiclePlugin {
     fn build(&self, app: &mut App) {
         app.add_plugins(DeferredRaycastingPlugin::<VehicleRaycastSet>::default())
-            .insert_resource(RaycastPluginState::<VehicleRaycastSet>::default().with_debug_cursor())
-            .add_systems(Update, (spawn_vehicle, update_vehicles, visualize_path));
+            .insert_resource(RaycastPluginState::<VehicleRaycastSet>::default())
+            .init_state::<AiVisualizationState>()
+            .add_systems(
+                Update,
+                (
+                    (toggle_ai_vizualization).in_set(UpdateStage::UserInput),
+                    spawn_vehicle,
+                    update_vehicles,
+                    update_speed.after(update_vehicles),
+                    (execute_movement, execute_turning).after(update_speed),
+                    (visualize_path, visualize_vehicle_ai)
+                        .in_set(UpdateStage::Visualize)
+                        .run_if(in_state(AiVisualizationState::Visualize)),
+                ),
+            );
     }
 }
 
@@ -32,14 +54,20 @@ pub struct Vehicle {
     pub path: Vec<Entity>,
     pub path_index: usize,
     pub speed: f32,
+    pub max_speed: f32,
+    pub follow: Vec3,
+    pub checkpoint: Vec3,
 }
 
 impl Vehicle {
-    fn new(path: Vec<Entity>) -> Self {
+    fn new(path: Vec<Entity>, max_speed: f32) -> Self {
         Self {
             path,
             path_index: 0,
             speed: 0.0,
+            max_speed,
+            follow: Vec3::ZERO,
+            checkpoint: Vec3::ZERO,
         }
     }
 }
@@ -108,112 +136,27 @@ fn get_intersection_goal(intersection: &Intersection, direction: GDir, start_pos
     }
 }
 
-fn update_vehicles(
-    mut commands: Commands,
-    mut vehicle_query: Query<(Entity, &mut Vehicle, &mut Transform, &RaycastSource<VehicleRaycastSet>)>,
-    segment_query: Query<&RoadSegment>,
-    intersection_query: Query<&Intersection>,
-    building_query: Query<&Building>,
-    time: Res<Time>,
-    mut gizmos: Gizmos,
-) {
-    for (entity, mut vehicle, mut transform, raycast) in &mut vehicle_query {
-        if vehicle.path_index >= vehicle.path.len() - 1 {
-            commands.entity(entity).despawn_recursive();
-            return;
-        }
+fn execute_turning(mut vehicle_query: Query<(&Vehicle, &mut Transform)>, time: Res<Time>) {
+    for (vehicle, mut transform) in &mut vehicle_query {
+        let follow_vec = vehicle.follow.with_y(0.0) - transform.translation.with_y(0.0);
+        let follow_dir = follow_vec.normalize();
+        let dot = follow_dir.dot(transform.left().as_vec3());
 
-        let curr = vehicle.path[vehicle.path_index];
-        let next = vehicle.path[vehicle.path_index + 1];
-
-        let curr_type = get_step_type(curr, &building_query, &segment_query);
-        let next_type = get_step_type(next, &building_query, &segment_query);
-
-        let mut goal = transform.translation;
-        let mut move_goal = transform.translation;
-
-        if curr_type == StepType::Building && next_type == StepType::Road {
-            if let Ok(segment) = segment_query.get(next) {
-                let lane_pos = segment.get_lane_pos(transform.translation);
-                transform.translation = lane_pos;
-                vehicle.path_index += 1;
-                return;
-            }
-        } else if curr_type == StepType::Road && next_type == StepType::Building {
-            if let Ok(building) = building_query.get(next) {
-                if let Ok(segment) = segment_query.get(curr) {
-                    let approach_dir = direction_to_building(segment, building, transform.translation);
-                    let target = building.area.center().with_y(transform.translation.y);
-                    goal = segment.clamp_to_lane(approach_dir, 0, target);
-
-                    let lane_pos = segment.clamp_to_lane(approach_dir, 0, transform.translation);
-                    let proj = goal + (transform.translation - goal).project_onto(lane_pos - goal);
-                    let interp_proj = proj + (goal - proj).normalize() * 0.5;
-                    move_goal = interp_proj;
-
-                    if transform.translation.distance(goal) < 1.0 {
-                        vehicle.path_index += 1;
-                        return;
-                    }
-                }
-            }
-        } else if curr_type == StepType::Road && next_type == StepType::Intersection {
-            if let Ok(intersection) = intersection_query.get(next) {
-                if let Ok(segment) = segment_query.get(curr) {
-                    let approach_dir = direction_to_area(segment, intersection.area());
-                    goal = get_intersection_goal(intersection, approach_dir, transform.translation);
-
-                    let lane_pos = segment.clamp_to_lane(approach_dir, 0, transform.translation);
-                    let proj = goal + (transform.translation - goal).project_onto(lane_pos - goal);
-                    let interp_proj = proj + (goal - proj).normalize() * 0.5;
-                    move_goal = interp_proj;
-
-                    if intersection.area.contains_point_3d(transform.translation) {
-                        vehicle.path_index += 1;
-                        return;
-                    }
-                }
-            }
-        } else if curr_type == StepType::Intersection {
-            if let Ok(intersection) = intersection_query.get(curr) {
-                if let Ok(next_segment) = segment_query.get(next) {
-                    let approach_dir = direction_to_area(next_segment, intersection.area()).inverse();
-                    goal = next_segment.clamp_to_lane(approach_dir, 0, transform.translation);
-
-                    let interp_proj = transform.translation + (goal - transform.translation).normalize() * 0.5;
-                    move_goal = interp_proj;
-
-                    if next_segment.area.contains_point_3d(transform.translation) {
-                        vehicle.path_index += 1;
-                        return;
-                    }
-                }
-            }
-        }
-
-        gizmos.line(transform.translation, goal, Color::linear_rgb(1.0, 1.0, 0.0));
-        gizmos.line(transform.translation, move_goal, Color::linear_rgb(0.0, 1.0, 0.0));
-        // gizmos.arrow(
-        //     transform.translation,
-        //     transform.translation + transform.forward().as_vec3(),
-        //     Color::linear_rgb(1.0, 0.0, 0.0),
-        // );
-
-        let to_move_goal = move_goal.with_y(0.0) - transform.translation.with_y(0.0);
-        let dir_to_move_goal = to_move_goal.normalize();
-        let rot_speed = ((goal.distance(transform.translation) * 25.0).recip()).max(1.0);
-        let dot = dir_to_move_goal.dot(transform.left().as_vec3());
         if dot > 0.01 {
-            let scalar = dir_to_move_goal.angle_between(transform.right().as_vec3());
-            transform.rotate_y(rot_speed * scalar * time.delta_seconds());
+            let scalar = follow_dir.angle_between(transform.right().as_vec3());
+            transform.rotate_y(scalar * time.delta_seconds());
         } else if dot < -0.01 {
-            let scalar = dir_to_move_goal.angle_between(transform.left().as_vec3());
-            transform.rotate_y(-rot_speed * scalar * time.delta_seconds());
+            let scalar = follow_dir.angle_between(transform.left().as_vec3());
+            transform.rotate_y(scalar * time.delta_seconds());
         } else {
-            transform.look_at(move_goal, Vec3::new(0.0, 1.0, 0.0));
+            transform.look_at(vehicle.follow, Vec3::new(0.0, 1.0, 0.0));
         }
+    }
+}
 
-        vehicle.speed = vehicle.speed.lerp(VEHICLE_MAX_SPEED, time.delta_seconds() * 0.5);
+fn update_speed(mut vehicle_query: Query<(&mut Vehicle, &RaycastSource<VehicleRaycastSet>)>, time: Res<Time>) {
+    for (mut vehicle, raycast) in &mut vehicle_query {
+        vehicle.speed = vehicle.speed.lerp(vehicle.max_speed, time.delta_seconds() * 0.5);
 
         let slow_dist = 2.0;
         let stop_dist = 1.0;
@@ -227,9 +170,122 @@ fn update_vehicles(
                 vehicle.speed = 0.0;
             }
         }
+    }
+}
 
+fn execute_movement(mut vehicle_query: Query<(&Vehicle, &mut Transform)>, time: Res<Time>) {
+    for (vehicle, mut transform) in &mut vehicle_query {
         let translate_dir = transform.forward().as_vec3();
         transform.translation += vehicle.speed * translate_dir * time.delta_seconds();
+    }
+}
+
+fn toggle_ai_vizualization(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut next_state: ResMut<NextState<AiVisualizationState>>,
+    state: Res<State<AiVisualizationState>>,
+) {
+    if keyboard.just_pressed(KeyCode::KeyV) {
+        next_state.set({
+            match state.get() {
+                AiVisualizationState::Hide => AiVisualizationState::Visualize,
+                AiVisualizationState::Visualize => AiVisualizationState::Hide,
+            }
+        });
+    }
+}
+
+fn visualize_vehicle_ai(mut vehicle_query: Query<(&Vehicle, &Transform)>, mut gizmos: Gizmos) {
+    for (vehicle, transform) in &mut vehicle_query {
+        gizmos.line(transform.translation, vehicle.checkpoint, Color::linear_rgb(1.0, 1.0, 0.0));
+        gizmos.arrow(transform.translation, vehicle.follow, Color::linear_rgb(0.0, 1.0, 0.0));
+    }
+}
+
+fn update_vehicles(
+    mut commands: Commands,
+    mut vehicle_query: Query<(Entity, &mut Vehicle, &mut Transform)>,
+    segment_query: Query<&RoadSegment>,
+    intersection_query: Query<&Intersection>,
+    building_query: Query<&Building>,
+) {
+    for (entity, mut vehicle, mut transform) in &mut vehicle_query {
+        if vehicle.path_index >= vehicle.path.len() - 1 {
+            commands.entity(entity).despawn_recursive();
+            return;
+        }
+
+        let curr = vehicle.path[vehicle.path_index];
+        let next = vehicle.path[vehicle.path_index + 1];
+
+        let curr_type = get_step_type(curr, &building_query, &segment_query);
+        let next_type = get_step_type(next, &building_query, &segment_query);
+
+        vehicle.checkpoint = transform.translation;
+        vehicle.follow = transform.translation;
+
+        if curr_type == StepType::Building && next_type == StepType::Road {
+            if let Ok(segment) = segment_query.get(next) {
+                let lane_pos = segment.get_lane_pos(transform.translation);
+                transform.translation = lane_pos;
+                vehicle.path_index += 1;
+                return;
+            }
+        } else if curr_type == StepType::Road && next_type == StepType::Building {
+            if let Ok(building) = building_query.get(next) {
+                if let Ok(segment) = segment_query.get(curr) {
+                    let approach_dir = direction_to_building(segment, building, transform.translation);
+                    let target = building.area.center().with_y(transform.translation.y);
+                    vehicle.checkpoint = segment.clamp_to_lane(approach_dir, 0, target);
+
+                    let lane_pos = segment.clamp_to_lane(approach_dir, 0, transform.translation);
+                    let current_vec = transform.translation - vehicle.checkpoint;
+                    let desired_vec = lane_pos - vehicle.checkpoint;
+                    let proj = vehicle.checkpoint + (current_vec).project_onto(desired_vec);
+                    let interp_proj = proj + (vehicle.checkpoint - proj).normalize() * 0.5;
+                    vehicle.follow = interp_proj;
+
+                    if transform.translation.distance(vehicle.checkpoint) < 1.0 {
+                        vehicle.path_index += 1;
+                        return;
+                    }
+                }
+            }
+        } else if curr_type == StepType::Road && next_type == StepType::Intersection {
+            if let Ok(intersection) = intersection_query.get(next) {
+                if let Ok(segment) = segment_query.get(curr) {
+                    let approach_dir = direction_to_area(segment, intersection.area());
+                    vehicle.checkpoint = get_intersection_goal(intersection, approach_dir, transform.translation);
+
+                    let lane_pos = segment.clamp_to_lane(approach_dir, 0, transform.translation);
+                    let current_vec = transform.translation - vehicle.checkpoint;
+                    let desired_vec = lane_pos - vehicle.checkpoint;
+                    let proj = vehicle.checkpoint + (current_vec).project_onto(desired_vec);
+                    let interp_proj = proj + (vehicle.checkpoint - proj).normalize() * 0.5;
+                    vehicle.follow = interp_proj;
+
+                    if intersection.area.contains_point_3d(transform.translation) {
+                        vehicle.path_index += 1;
+                        return;
+                    }
+                }
+            }
+        } else if curr_type == StepType::Intersection {
+            if let Ok(intersection) = intersection_query.get(curr) {
+                if let Ok(next_segment) = segment_query.get(next) {
+                    let approach_dir = direction_to_area(next_segment, intersection.area()).inverse();
+                    vehicle.checkpoint = next_segment.clamp_to_lane(approach_dir, 0, transform.translation);
+
+                    let interp_proj = transform.translation + (vehicle.checkpoint - transform.translation).normalize() * 0.5;
+                    vehicle.follow = interp_proj;
+
+                    if next_segment.area.contains_point_3d(transform.translation) {
+                        vehicle.path_index += 1;
+                        return;
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -341,6 +397,7 @@ fn spawn_vehicle(
             path.reverse();
 
             let start_location = building_query.get(path[0]).unwrap().1.pos().with_y(ROAD_HEIGHT + (VEHICLE_HEIGHT));
+            let max_speed = VEHICLE_MAX_SPEED + rand::thread_rng().gen_range(-MAX_SPEED_VARIATION..MAX_SPEED_VARIATION);
 
             commands.spawn((
                 PbrBundle {
@@ -349,7 +406,7 @@ fn spawn_vehicle(
                     transform: Transform::from_translation(start_location),
                     ..default()
                 },
-                Vehicle::new(path),
+                Vehicle::new(path, max_speed),
                 RaycastMesh::<VehicleRaycastSet>::default(),
                 RaycastSource::<VehicleRaycastSet>::new_transform_empty(),
             ));
