@@ -50,12 +50,12 @@ impl RoadSegment {
     pub fn get_intersection_area(&self, turn_to_area: GridArea) -> GridArea {
         match self.orientation {
             GAxis::Z => GridArea::new(
-                GridCell::new(self.area.min.position.x, turn_to_area.min.position.y),
-                GridCell::new(self.area.max.position.x, turn_to_area.max.position.y),
+                GridCell::new(self.area.min.pos.x, turn_to_area.min.pos.y),
+                GridCell::new(self.area.max.pos.x, turn_to_area.max.pos.y),
             ),
             GAxis::X => GridArea::new(
-                GridCell::new(turn_to_area.min.position.x, self.area.min.position.y),
-                GridCell::new(turn_to_area.max.position.x, self.area.max.position.y),
+                GridCell::new(turn_to_area.min.pos.x, self.area.min.pos.y),
+                GridCell::new(turn_to_area.max.pos.x, self.area.max.pos.y),
             ),
         }
     }

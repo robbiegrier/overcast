@@ -1,7 +1,11 @@
 use crate::{
-    graph::road_graph_events::*, graphics::camera::*, grid::grid::*, grid::grid_area::*, grid::grid_cell::*,
-    grid::orientation::*, schedule::UpdateStage, tools::road_events::*, tools::toolbar::ToolState, types::intersection::*,
-    types::road_segment::*,
+    graph::road_graph_events::*,
+    graphics::camera::*,
+    grid::{grid::*, grid_area::*, grid_cell::*, orientation::*},
+    schedule::UpdateStage,
+    tools::{road_events::*, toolbar::ToolState},
+    types::{intersection::*, road_segment::*},
+    ui::egui::MouseOver,
 };
 use bevy::prelude::*;
 use std::f32::consts::FRAC_PI_2;
@@ -24,8 +28,10 @@ impl Plugin for RoadToolPlugin {
             .add_systems(
                 Update,
                 (
-                    (update_ground_position).in_set(UpdateStage::UpdateView),
-                    (adjust_tool_size, change_orientation, handle_action).in_set(UpdateStage::UserInput),
+                    (update_ground_position).in_set(UpdateStage::UpdateView).run_if(in_state(MouseOver::World)),
+                    (adjust_tool_size, change_orientation, handle_action)
+                        .in_set(UpdateStage::UserInput)
+                        .run_if(in_state(MouseOver::World)),
                     (split_roads, extend_roads, bridge_roads).in_set(UpdateStage::HighLevelSideEffects),
                     (spawn_roads, spawn_intersections).in_set(UpdateStage::Spawning),
                 )
@@ -93,13 +99,13 @@ impl RoadTool {
         let end = self.drag_end_area();
 
         if self.orientation == GAxis::Z {
-            if end.max.position.y >= start.max.position.y {
+            if end.max.pos.y >= start.max.pos.y {
                 start.adjacent_bottom()
             } else {
                 start.adjacent_top()
             }
         } else {
-            if end.max.position.x >= start.max.position.x {
+            if end.max.pos.x >= start.max.pos.x {
                 start.adjacent_left()
             } else {
                 start.adjacent_right()
@@ -112,13 +118,13 @@ impl RoadTool {
         let end = self.drag_end_area();
 
         if self.orientation == GAxis::Z {
-            if end.max.position.y >= start.max.position.y {
+            if end.max.pos.y >= start.max.pos.y {
                 end.adjacent_top()
             } else {
                 end.adjacent_bottom()
             }
         } else {
-            if end.max.position.x >= start.max.position.x {
+            if end.max.pos.x >= start.max.pos.x {
                 end.adjacent_right()
             } else {
                 end.adjacent_left()
@@ -360,26 +366,26 @@ fn split_roads(
     for &RequestRoadSplit { entity, split_area } in split_event.read() {
         if let Ok(segment) = segment_query.get(entity) {
             if segment.orientation == GAxis::Z {
-                if segment.area.min.position.y < split_area.min.position.y {
-                    let split_max = GridCell::new(segment.area.max.position.x, split_area.adjacent_bottom().min.position.y);
+                if segment.area.min.pos.y < split_area.min.pos.y {
+                    let split_max = GridCell::new(segment.area.max.pos.x, split_area.adjacent_bottom().min.pos.y);
                     let road_area = GridArea::new(segment.area.min, split_max);
                     roads.send(RequestRoad::new(road_area, segment.orientation));
                 }
 
-                if segment.area.max.position.y > split_area.max.position.y {
-                    let split_min = GridCell::new(segment.area.min.position.x, split_area.adjacent_top().max.position.y);
+                if segment.area.max.pos.y > split_area.max.pos.y {
+                    let split_min = GridCell::new(segment.area.min.pos.x, split_area.adjacent_top().max.pos.y);
                     let road_area = GridArea::new(split_min, segment.area.max);
                     roads.send(RequestRoad::new(road_area, segment.orientation));
                 }
             } else {
-                if segment.area.min.position.x < split_area.min.position.x {
-                    let split_max = GridCell::new(split_area.adjacent_left().min.position.x, segment.area.max.position.y);
+                if segment.area.min.pos.x < split_area.min.pos.x {
+                    let split_max = GridCell::new(split_area.adjacent_left().min.pos.x, segment.area.max.pos.y);
                     let road_area = GridArea::new(segment.area.min, split_max);
                     roads.send(RequestRoad::new(road_area, segment.orientation));
                 }
 
-                if segment.area.max.position.x > split_area.max.position.x {
-                    let split_min = GridCell::new(split_area.adjacent_right().max.position.x, segment.area.min.position.y);
+                if segment.area.max.pos.x > split_area.max.pos.x {
+                    let split_min = GridCell::new(split_area.adjacent_right().max.pos.x, segment.area.min.pos.y);
                     let road_area = GridArea::new(split_min, segment.area.max);
                     roads.send(RequestRoad::new(road_area, segment.orientation));
                 }

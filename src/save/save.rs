@@ -1,10 +1,13 @@
-use crate::grid::grid_area::*;
-use crate::grid::orientation::GAxis;
-use crate::tools::building_tool::RequestBuilding;
-use crate::tools::road_events::{RequestIntersection, RequestRoad};
-use crate::types::building::*;
-use crate::types::intersection::Intersection;
-use crate::types::road_segment::RoadSegment;
+use crate::{
+    grid::{grid_area::*, orientation::GAxis},
+    save::save_events::*,
+    schedule::UpdateStage,
+    tools::{
+        building_tool::RequestBuilding,
+        road_events::{RequestIntersection, RequestRoad},
+    },
+    types::{building::*, intersection::Intersection, road_segment::RoadSegment},
+};
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::fs::File;
@@ -16,7 +19,9 @@ pub struct SavePlugin;
 
 impl Plugin for SavePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(PostStartup, load_from_disk).add_systems(Update, save_to_disk);
+        app.add_event::<SaveRequest>()
+            .add_systems(PostStartup, load_from_disk)
+            .add_systems(Update, (save_on_key_press.in_set(UpdateStage::UserInput), save_to_disk));
     }
 }
 
@@ -62,13 +67,19 @@ pub fn load_from_disk(
     }
 }
 
+pub fn save_on_key_press(keyboard: Res<ButtonInput<KeyCode>>, mut event: EventWriter<SaveRequest>) {
+    if keyboard.just_pressed(KeyCode::F5) {
+        event.send(SaveRequest);
+    }
+}
+
 pub fn save_to_disk(
-    keyboard: Res<ButtonInput<KeyCode>>,
     building_query: Query<&Building>,
     segment_query: Query<&RoadSegment>,
     inter_query: Query<&Intersection>,
+    mut event: EventReader<SaveRequest>,
 ) {
-    if keyboard.just_pressed(KeyCode::F5) {
+    for _ in event.read() {
         let mut save_data = SaveObject::new();
 
         for building in &building_query {

@@ -1,6 +1,11 @@
 use crate::{
-    graph::road_graph_events::*, graphics::camera::*, grid::grid::*, grid::grid_area::*, schedule::UpdateStage,
-    tools::toolbar::ToolState, types::building::*,
+    graph::road_graph_events::*,
+    graphics::camera::*,
+    grid::{grid::*, grid_area::*},
+    schedule::UpdateStage,
+    tools::toolbar::ToolState,
+    types::building::*,
+    ui::egui::MouseOver,
 };
 use bevy::prelude::*;
 use rand::Rng;
@@ -13,8 +18,8 @@ impl Plugin for BuildingToolPlugin {
             Update,
             (
                 (
-                    (update_ground_position).in_set(UpdateStage::UpdateView),
-                    (adjust_tool_size, handle_tool_action).in_set(UpdateStage::UserInput),
+                    (update_ground_position).in_set(UpdateStage::UpdateView).run_if(in_state(MouseOver::World)),
+                    (adjust_tool_size, handle_tool_action).in_set(UpdateStage::UserInput).run_if(in_state(MouseOver::World)),
                 )
                     .run_if(in_state(ToolState::Building)),
                 (spawn_buildings).in_set(UpdateStage::Spawning),

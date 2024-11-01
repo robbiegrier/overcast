@@ -13,8 +13,12 @@ bevy_infinite_grid = { git = "https://github.com/ForesightMiningSoftwareCorporat
 rand = "0.8.4"
 if_chain = "1.0.2"
 bevy_mod_raycast = "0.18.0"
-serde_json = "1.0"
-serde = "1.0"
+serde_json = "1.0.132"
+serde = "1.0.214"
+bevy_egui = "0.30"
+catppuccin-egui = { version = "5.3.0", default-features = false, features = [
+    "egui29",
+] }
 
 # Enable a small amount of optimization in the dev profile.
 [profile.dev]

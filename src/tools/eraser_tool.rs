@@ -1,6 +1,11 @@
 use crate::{
-    graph::road_graph_events::*, graphics::camera::*, grid::grid::*, grid::grid_area::*, schedule::UpdateStage,
-    tools::toolbar::ToolState, types::building::*, types::intersection::*, types::road_segment::*,
+    graph::road_graph_events::*,
+    graphics::camera::*,
+    grid::{grid::*, grid_area::*},
+    schedule::UpdateStage,
+    tools::toolbar::ToolState,
+    types::{building::*, intersection::*, road_segment::*},
+    ui::egui::MouseOver,
 };
 use bevy::prelude::*;
 
@@ -12,8 +17,8 @@ impl Plugin for EraserToolPlugin {
             Update,
             (
                 (
-                    (update_ground_position).in_set(UpdateStage::UpdateView),
-                    (adjust_tool_size, handle_tool_action).in_set(UpdateStage::UserInput),
+                    (update_ground_position).in_set(UpdateStage::UpdateView).run_if(in_state(MouseOver::World)),
+                    (adjust_tool_size, handle_tool_action).in_set(UpdateStage::UserInput).run_if(in_state(MouseOver::World)),
                 )
                     .run_if(in_state(ToolState::Eraser)),
                 (

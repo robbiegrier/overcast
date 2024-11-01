@@ -1,7 +1,12 @@
-use crate::tools::{building_tool::BuildingToolPlugin, eraser_tool::EraserToolPlugin, road_tool::RoadToolPlugin};
+use crate::{
+    schedule::UpdateStage,
+    tools::{
+        building_tool::BuildingToolPlugin, eraser_tool::EraserToolPlugin, road_tool::RoadToolPlugin, toolbar_events::*,
+    },
+};
 use bevy::prelude::*;
 
-#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(States, Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ToolState {
     Building,
     #[default]
@@ -14,26 +19,34 @@ pub struct ToolbarPlugin;
 
 impl Plugin for ToolbarPlugin {
     fn build(&self, app: &mut App) {
-        app.init_state::<ToolState>().add_systems(Update, change_tool).add_plugins((
-            BuildingToolPlugin,
-            RoadToolPlugin,
-            EraserToolPlugin,
-        ));
+        app.init_state::<ToolState>()
+            .add_event::<ChangeToolRequest>()
+            .add_plugins((BuildingToolPlugin, RoadToolPlugin, EraserToolPlugin))
+            .add_systems(
+                Update,
+                (
+                    change_tool_on_keypress.in_set(UpdateStage::UserInput),
+                    handle_change_tool_requests,
+                )
+                    .chain(),
+            );
     }
 }
 
-pub fn change_tool(mut next_state: ResMut<NextState<ToolState>>, keyboard_input: Res<ButtonInput<KeyCode>>) {
+pub fn change_tool_on_keypress(keyboard_input: Res<ButtonInput<KeyCode>>, mut change_tool: EventWriter<ChangeToolRequest>) {
     if keyboard_input.just_pressed(KeyCode::Digit1) {
-        println!("Entering building tool");
-        next_state.set(ToolState::Building);
+        change_tool.send(ChangeToolRequest(ToolState::Building));
     } else if keyboard_input.just_pressed(KeyCode::Digit2) {
-        println!("Entering road tool");
-        next_state.set(ToolState::Road);
+        change_tool.send(ChangeToolRequest(ToolState::Road));
     } else if keyboard_input.just_pressed(KeyCode::Digit3) {
-        println!("Entering eraser tool");
-        next_state.set(ToolState::Eraser);
+        change_tool.send(ChangeToolRequest(ToolState::Eraser));
     } else if keyboard_input.just_pressed(KeyCode::Backquote) {
-        println!("Entering view tool");
-        next_state.set(ToolState::View);
+        change_tool.send(ChangeToolRequest(ToolState::View));
+    }
+}
+
+pub fn handle_change_tool_requests(mut event: EventReader<ChangeToolRequest>, mut next_state: ResMut<NextState<ToolState>>) {
+    for &ChangeToolRequest(mode) in event.read() {
+        next_state.set(mode);
     }
 }

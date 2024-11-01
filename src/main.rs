@@ -5,6 +5,7 @@ mod save;
 mod schedule;
 mod tools;
 mod types;
+mod ui;
 
 use bevy::prelude::*;
 
@@ -22,5 +23,6 @@ fn main() {
         .add_plugins(tools::toolbar::ToolbarPlugin)
         .add_plugins(graphics::weather::WeatherPlugin)
         .add_plugins(save::save::SavePlugin)
+        .add_plugins(ui::egui::UiPlugin)
         .run();
 }

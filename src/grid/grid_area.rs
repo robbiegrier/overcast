@@ -15,8 +15,8 @@ impl GridArea {
 
     pub fn at(location: Vec3, width: i32, height: i32) -> Self {
         let hover_cell = GridCell::at(location);
-        let mut min = hover_cell.position.clone();
-        let mut max = hover_cell.position.clone();
+        let mut min = hover_cell.pos.clone();
+        let mut max = hover_cell.pos.clone();
 
         if width % 2 != 0 {
             let radius = (width - 1) / 2;
@@ -60,8 +60,8 @@ impl GridArea {
 
     pub fn cell_dimensions(&self) -> IVec2 {
         IVec2 {
-            x: (self.max.position.x - self.min.position.x) + 1,
-            y: (self.max.position.y - self.min.position.y) + 1,
+            x: (self.max.pos.x - self.min.pos.x) + 1,
+            y: (self.max.pos.y - self.min.pos.y) + 1,
         }
     }
 
@@ -75,56 +75,56 @@ impl GridArea {
     pub fn union(&self, other: GridArea) -> GridArea {
         GridArea {
             min: GridCell {
-                position: IVec2 {
-                    x: self.min.position.x.min(other.min.position.x),
-                    y: self.min.position.y.min(other.min.position.y),
+                pos: IVec2 {
+                    x: self.min.pos.x.min(other.min.pos.x),
+                    y: self.min.pos.y.min(other.min.pos.y),
                 },
             },
             max: GridCell {
-                position: IVec2 {
-                    x: self.max.position.x.max(other.max.position.x),
-                    y: self.max.position.y.max(other.max.position.y),
+                pos: IVec2 {
+                    x: self.max.pos.x.max(other.max.pos.x),
+                    y: self.max.pos.y.max(other.max.pos.y),
                 },
             },
         }
     }
 
     pub fn adjacent_bottom(&self) -> GridArea {
-        let new_y = self.min.position.y - 1;
+        let new_y = self.min.pos.y - 1;
         GridArea {
-            min: GridCell::new(self.min.position.x, new_y),
-            max: GridCell::new(self.max.position.x, new_y),
+            min: GridCell::new(self.min.pos.x, new_y),
+            max: GridCell::new(self.max.pos.x, new_y),
         }
     }
 
     pub fn adjacent_top(&self) -> GridArea {
-        let new_y = self.max.position.y + 1;
+        let new_y = self.max.pos.y + 1;
         GridArea {
-            min: GridCell::new(self.min.position.x, new_y),
-            max: GridCell::new(self.max.position.x, new_y),
+            min: GridCell::new(self.min.pos.x, new_y),
+            max: GridCell::new(self.max.pos.x, new_y),
         }
     }
 
     pub fn adjacent_left(&self) -> GridArea {
-        let new_x = self.min.position.x - 1;
+        let new_x = self.min.pos.x - 1;
         GridArea {
-            min: GridCell::new(new_x, self.min.position.y),
-            max: GridCell::new(new_x, self.max.position.y),
+            min: GridCell::new(new_x, self.min.pos.y),
+            max: GridCell::new(new_x, self.max.pos.y),
         }
     }
 
     pub fn adjacent_right(&self) -> GridArea {
-        let new_x = self.max.position.x + 1;
+        let new_x = self.max.pos.x + 1;
         GridArea {
-            min: GridCell::new(new_x, self.min.position.y),
-            max: GridCell::new(new_x, self.max.position.y),
+            min: GridCell::new(new_x, self.min.pos.y),
+            max: GridCell::new(new_x, self.max.pos.y),
         }
     }
 
     pub fn iter(&self) -> GridAreaIterator {
         GridAreaIterator {
             area: self,
-            current: GridCell::new(self.min.position.x - 1, self.min.position.y),
+            current: GridCell::new(self.min.pos.x - 1, self.min.pos.y),
         }
     }
 
@@ -142,11 +142,11 @@ impl<'a> Iterator for GridAreaIterator<'a> {
     type Item = GridCell;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current.position.x < self.area.max.position.x {
-            self.current = GridCell::new(self.current.position.x + 1, self.current.position.y);
+        if self.current.pos.x < self.area.max.pos.x {
+            self.current = GridCell::new(self.current.pos.x + 1, self.current.pos.y);
             Some(self.current)
-        } else if self.current.position.y < self.area.max.position.y {
-            self.current = GridCell::new(self.area.min.position.x, self.current.position.y + 1);
+        } else if self.current.pos.y < self.area.max.pos.y {
+            self.current = GridCell::new(self.area.min.pos.x, self.current.pos.y + 1);
             Some(self.current)
         } else {
             None

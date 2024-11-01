@@ -58,7 +58,7 @@ impl Grid {
     }
 
     pub fn entity_at(&self, cell: GridCell) -> Result<Option<Entity>, GridBoundsError> {
-        let offset = self.center + cell.position;
+        let offset = self.center + cell.pos;
         if offset.x >= 0 && offset.x < GRID_DIAMETER && offset.y >= 0 && offset.y < GRID_DIAMETER {
             Ok(self.entities[Grid::coordinate(offset)])
         } else {
@@ -109,7 +109,7 @@ impl Grid {
 
     pub fn mark_area_occupied(&mut self, area: GridArea, entity: Entity) {
         for cell in area.iter() {
-            self.entities[Grid::coordinate(self.center + cell.position)] = Some(entity);
+            self.entities[Grid::coordinate(self.center + cell.pos)] = Some(entity);
         }
 
         self.addresses.entry(entity).or_insert(Vec::new()).extend(area.iter());
@@ -118,7 +118,7 @@ impl Grid {
     pub fn erase(&mut self, entity: Entity) {
         if let Some(address_list) = self.addresses.get(&entity) {
             for cell in address_list {
-                let offset = self.center + cell.position;
+                let offset = self.center + cell.pos;
                 self.entities[Grid::coordinate(offset)] = None;
             }
 
