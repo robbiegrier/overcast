@@ -62,6 +62,7 @@ pub struct Vehicle {
     pub max_speed: f32,
     pub follow: Vec3,
     pub checkpoint: Vec3,
+    pub lane: i32,
 }
 
 impl Vehicle {
@@ -73,6 +74,7 @@ impl Vehicle {
             max_speed,
             follow: Vec3::ZERO,
             checkpoint: Vec3::ZERO,
+            lane: 0,
         }
     }
 }
@@ -138,6 +140,36 @@ fn get_intersection_goal(intersection: &Intersection, direction: GDir, start_pos
         GDir::South => intersection.area.center().with_x(start_pos.x).with_y(start_pos.y),
         GDir::East => intersection.area.center().with_z(start_pos.z).with_y(start_pos.y),
         GDir::West => intersection.area.center().with_z(start_pos.z).with_y(start_pos.y),
+    }
+}
+
+fn get_lane_for_turn(curr: &RoadSegment, next: &RoadSegment, prev: i32) -> i32 {
+    let z_less = next.area().center().z < curr.area().center().z;
+    let x_less = next.area().center().x < curr.area().center().x;
+    if curr.orientation == next.orientation {
+        prev
+    } else if next.orientation == GAxis::X {
+        match z_less {
+            true => match x_less {
+                true => curr.num_lanes() - 1,
+                false => 0,
+            },
+            false => match x_less {
+                false => curr.num_lanes() - 1,
+                true => 0,
+            },
+        }
+    } else {
+        match x_less {
+            true => match z_less {
+                false => curr.num_lanes() - 1,
+                true => 0,
+            },
+            false => match z_less {
+                true => curr.num_lanes() - 1,
+                false => 0,
+            },
+        }
     }
 }
 
@@ -262,7 +294,11 @@ fn update_vehicles(
                     let approach_dir = direction_to_area(segment, intersection.area());
                     vehicle.checkpoint = get_intersection_goal(intersection, approach_dir, transform.translation);
 
-                    let lane_pos = segment.clamp_to_lane(approach_dir, 0, transform.translation);
+                    if let Ok(next_segment) = segment_query.get(vehicle.path[vehicle.path_index + 2]) {
+                        vehicle.lane = get_lane_for_turn(segment, next_segment, vehicle.lane);
+                    }
+
+                    let lane_pos = segment.clamp_to_lane(approach_dir, vehicle.lane, transform.translation);
                     let current_vec = transform.translation - vehicle.checkpoint;
                     let desired_vec = lane_pos - vehicle.checkpoint;
                     let proj = vehicle.checkpoint + (current_vec).project_onto(desired_vec);
@@ -279,7 +315,12 @@ fn update_vehicles(
             if let Ok(intersection) = intersection_query.get(curr) {
                 if let Ok(next_segment) = segment_query.get(next) {
                     let approach_dir = direction_to_area(next_segment, intersection.area()).inverse();
-                    vehicle.checkpoint = next_segment.clamp_to_lane(approach_dir, 0, transform.translation);
+
+                    if let Ok(prev_segment) = segment_query.get(vehicle.path[vehicle.path_index - 1]) {
+                        vehicle.lane = get_lane_for_turn(prev_segment, next_segment, vehicle.lane);
+                    }
+
+                    vehicle.checkpoint = next_segment.clamp_to_lane(approach_dir, vehicle.lane, transform.translation);
                     vehicle.checkpoint += approach_dir.as_vec3() * INTERSECTION_OFFSET;
 
                     let interp_proj = transform.translation + (vehicle.checkpoint - transform.translation).normalize() * 0.5;

@@ -2,6 +2,9 @@ use crate::{grid::grid_area::*, grid::grid_cell::*, grid::orientation::*};
 use bevy::prelude::*;
 use bevy::utils::HashSet;
 
+const LANE_MEDIAN_SIZE: f32 = 0.15;
+const LANE_SEP: f32 = 0.333;
+
 #[derive(Component, Debug)]
 pub struct RoadSegment {
     pub orientation: GAxis,
@@ -71,7 +74,7 @@ impl RoadSegment {
         let cmax = self.area.max.max_corner();
         let cmin = self.area.min.min_corner();
         let lane_id = (num + 1).clamp(1, self.num_lanes());
-        let lane_stride = 0.5 * self.num_lanes() as f32 * lane_id as f32;
+        let lane_stride = (LANE_SEP * self.num_lanes() as f32 * lane_id as f32) + LANE_MEDIAN_SIZE;
 
         if self.orientation == GAxis::Z {
             if dir == GDir::North {
