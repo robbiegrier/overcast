@@ -1,18 +1,18 @@
 
 ## Todo
 
-### lane change
-- change lane on large road based on next intersection turn direction
-- interpolate left or right
+### prefer least populated lane
+- minimize congestion if not turning 
 
 ### road placement - detect sides
 - attach road to existing roads along the length of the placed road
 
-### basic ui
-- buttons and text for keybinds to change modes and toggle visualizations
-
 ### lane lines
 - overlay roads with appropriate lane lines
+
+### update vehicle paths on road change
+- vehicles observe roads and detect changes
+- recalculate paths if the roads change
 
 ### intersection rules
 - rotate with simple timer
