@@ -9,7 +9,10 @@ use bevy::{
     utils::{HashMap, HashSet},
 };
 use bevy_mod_raycast::prelude::*;
-use rand::{seq::IteratorRandom, Rng};
+use rand::{
+    seq::{IteratorRandom, SliceRandom},
+    Rng,
+};
 
 const VEHICLE_HEIGHT: f32 = 0.25;
 // const VEHICLE_LENGTH: f32 = VEHICLE_HEIGHT * 2.0;
@@ -147,7 +150,7 @@ fn get_lane_for_turn(curr: &RoadSegment, next: &RoadSegment, prev: i32) -> i32 {
     let z_less = next.area().center().z < curr.area().center().z;
     let x_less = next.area().center().x < curr.area().center().x;
     if curr.orientation == next.orientation {
-        prev
+        prev.clamp(0, curr.num_lanes() - 1)
     } else if next.orientation == GAxis::X {
         match z_less {
             true => match x_less {
@@ -191,13 +194,25 @@ fn execute_turning(mut vehicle_query: Query<(&Vehicle, &mut Transform)>, time: R
     }
 }
 
-fn update_speed(mut vehicle_query: Query<(&mut Vehicle, &RaycastSource<VehicleRaycastSet>)>, time: Res<Time>) {
-    for (mut vehicle, raycast) in &mut vehicle_query {
+fn update_speed(
+    mut vehicle_query: Query<(Entity, &mut Vehicle, &RaycastSource<VehicleRaycastSet>)>,
+    other_query: Query<&RaycastSource<VehicleRaycastSet>, With<Vehicle>>,
+    time: Res<Time>,
+) {
+    for (ent, mut vehicle, raycast) in &mut vehicle_query {
         vehicle.speed = vehicle.speed.lerp(vehicle.max_speed, time.delta_seconds() * 0.5);
 
-        let slow_dist = 3.0;
+        let slow_dist = 2.0;
         let stop_dist = 0.5;
-        if let Some((_, hit)) = raycast.get_nearest_intersection() {
+        if let Some((other, hit)) = raycast.get_nearest_intersection() {
+            if let Ok((other_raycast)) = other_query.get(other) {
+                if let Some((other2, _)) = other_raycast.get_nearest_intersection() {
+                    if other2 == ent {
+                        continue;
+                    }
+                }
+            }
+
             if hit.distance() < slow_dist {
                 vehicle.speed -= (slow_dist - hit.distance()).max(0.0) * time.delta_seconds();
                 vehicle.speed = vehicle.speed.max(0.0);
@@ -374,7 +389,8 @@ fn spawn_vehicle(
 ) {
     for _ in request.read() {
         let mut rng = rand::thread_rng();
-        let choose = building_query.iter().choose_multiple(&mut rng, 2);
+        let mut choose = building_query.iter().choose_multiple(&mut rng, 2);
+        choose.shuffle(&mut rng);
 
         if choose.len() < 2 {
             println!("not enough buildings to make a path");
@@ -416,7 +432,9 @@ fn spawn_vehicle(
                 }
                 // Add endpoints of this edge
                 else {
-                    if let Some(endpoint0) = edge.ends[0] {
+                    let mut choices = [0, 1];
+                    choices.shuffle(&mut rng);
+                    if let Some(endpoint0) = edge.ends[choices[0]] {
                         if let Ok((en0, _n0)) = inter_query.get(endpoint0) {
                             if !visited.contains(&en0) {
                                 frontier.push(en0);
@@ -424,7 +442,7 @@ fn spawn_vehicle(
                             }
                         }
                     }
-                    if let Some(endpoint1) = edge.ends[1] {
+                    if let Some(endpoint1) = edge.ends[choices[1]] {
                         if let Ok((en1, _n1)) = inter_query.get(endpoint1) {
                             if !visited.contains(&en1) {
                                 frontier.push(en1);
@@ -436,7 +454,10 @@ fn spawn_vehicle(
             }
             // if curr is a node, add connected edges
             else if let Ok((_e, node)) = inter_query.get(curr) {
-                for slot in &node.roads {
+                let mut choices = node.roads.clone();
+                choices.shuffle(&mut rng);
+
+                for slot in &choices {
                     if let Some(road) = slot {
                         if !visited.contains(road) {
                             frontier.push(*road);

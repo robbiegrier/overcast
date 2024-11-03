@@ -2,8 +2,9 @@ use crate::{grid::grid_area::*, grid::grid_cell::*, grid::orientation::*};
 use bevy::prelude::*;
 use bevy::utils::HashSet;
 
-const LANE_MEDIAN_SIZE: f32 = 0.15;
+const LANE_MEDIAN_SIZE: f32 = 0.05;
 const LANE_SEP: f32 = 0.333;
+const LANE_CURB: f32 = 0.05;
 
 #[derive(Component, Debug)]
 pub struct RoadSegment {
@@ -73,20 +74,41 @@ impl RoadSegment {
     pub fn clamp_to_lane(&self, dir: GDir, num: i32, pos: Vec3) -> Vec3 {
         let cmax = self.area.max.max_corner();
         let cmin = self.area.min.min_corner();
-        let lane_id = (num + 1).clamp(1, self.num_lanes());
-        let lane_stride = (LANE_SEP * self.num_lanes() as f32 * lane_id as f32) + LANE_MEDIAN_SIZE;
+
+        let lanesf = self.num_lanes() as f32;
+        let curbf = lanesf * LANE_CURB;
+        let medianf = lanesf * LANE_MEDIAN_SIZE;
+
+        let dir_width = (lanesf - medianf) - curbf;
+        let t = (num + 1) as f32 / (lanesf + 1.0);
 
         if self.orientation == GAxis::Z {
             if dir == GDir::North {
-                pos.with_x(cmin.x + lane_stride).with_z(pos.z.clamp(cmin.z, cmax.z))
+                let a = cmin.x + curbf;
+                let b = a + dir_width;
+                let desired = a.lerp(b, t);
+                pos.with_x(desired).with_z(pos.z.clamp(cmin.z, cmax.z))
+                // pos.with_x(cmin.x + LANE_CURB + lane_stride).with_z(pos.z.clamp(cmin.z, cmax.z))
             } else {
-                pos.with_x(cmax.x - lane_stride).with_z(pos.z.clamp(cmin.z, cmax.z))
+                let a = cmax.x - curbf;
+                let b = a - dir_width;
+                let desired = a.lerp(b, t);
+                pos.with_x(desired).with_z(pos.z.clamp(cmin.z, cmax.z))
+                // pos.with_x(cmax.x - LANE_CURB - lane_stride).with_z(pos.z.clamp(cmin.z, cmax.z))
             }
         } else {
             if dir == GDir::East {
-                pos.with_z(cmin.z + lane_stride).with_x(pos.x.clamp(cmin.x, cmax.x))
+                let a = cmin.z + curbf;
+                let b = a + dir_width;
+                let desired = a.lerp(b, t);
+                pos.with_z(desired).with_x(pos.x.clamp(cmin.x, cmax.x))
+                // pos.with_z(cmin.z + LANE_CURB + lane_stride).with_x(pos.x.clamp(cmin.x, cmax.x))
             } else {
-                pos.with_z(cmax.z - lane_stride).with_x(pos.x.clamp(cmin.x, cmax.x))
+                let a = cmax.z - curbf;
+                let b = a - dir_width;
+                let desired = a.lerp(b, t);
+                pos.with_z(desired).with_x(pos.x.clamp(cmin.x, cmax.x))
+                // pos.with_z(cmax.z - LANE_CURB - lane_stride).with_x(pos.x.clamp(cmin.x, cmax.x))
             }
         }
     }
