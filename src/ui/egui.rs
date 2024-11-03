@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_egui::egui::{epaint, Align2};
+use bevy_egui::egui::{epaint, Align2, Color32};
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 
 use crate::save::save_events::SaveRequest;
@@ -43,6 +43,7 @@ fn ui_theme_selection(mut contexts: EguiContexts) {
     catppuccin_egui::set_theme(contexts.ctx_mut(), catppuccin_egui::MACCHIATO);
 
     let old = contexts.ctx_mut().style().visuals.clone();
+
     contexts.ctx_mut().set_visuals(egui::Visuals {
         window_shadow: epaint::Shadow {
             offset: [0.0, 0.0].into(),
@@ -67,7 +68,7 @@ pub fn update_toolbar_window(
     egui::Window::new("Tools")
         .resizable(false)
         .collapsible(false)
-        .anchor(Align2::LEFT_TOP, (0.0, 0.0))
+        .anchor(Align2::LEFT_BOTTOM, (0.0, 0.0))
         .constrain(true)
         .movable(false)
         .show(ctx, |ui| {
@@ -121,7 +122,7 @@ pub fn update_stats_window(
     egui::Window::new("Stats")
         .resizable(false)
         .collapsible(false)
-        .anchor(Align2::LEFT_BOTTOM, (0.0, 0.0))
+        .anchor(Align2::RIGHT_BOTTOM, (0.0, 0.0))
         .constrain(true)
         .movable(false)
         .show(ctx, |ui| {

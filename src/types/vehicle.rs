@@ -12,7 +12,7 @@ use bevy_mod_raycast::prelude::*;
 use rand::{seq::IteratorRandom, Rng};
 
 const VEHICLE_HEIGHT: f32 = 0.25;
-const VEHICLE_LENGTH: f32 = VEHICLE_HEIGHT * 2.0;
+// const VEHICLE_LENGTH: f32 = VEHICLE_HEIGHT * 2.0;
 const VEHICLE_MAX_SPEED: f32 = 1.5;
 const MAX_SPEED_VARIATION: f32 = 0.5;
 const SPAWN_TIME_SECONDS: f32 = 0.25;
@@ -195,8 +195,8 @@ fn update_speed(mut vehicle_query: Query<(&mut Vehicle, &RaycastSource<VehicleRa
     for (mut vehicle, raycast) in &mut vehicle_query {
         vehicle.speed = vehicle.speed.lerp(vehicle.max_speed, time.delta_seconds() * 0.5);
 
-        let slow_dist = 2.0;
-        let stop_dist = 1.0;
+        let slow_dist = 3.0;
+        let stop_dist = 0.5;
         if let Some((_, hit)) = raycast.get_nearest_intersection() {
             if hit.distance() < slow_dist {
                 vehicle.speed -= (slow_dist - hit.distance()).max(0.0) * time.delta_seconds();
@@ -369,9 +369,8 @@ fn spawn_vehicle(
     segment_query: Query<(Entity, &RoadSegment)>,
     inter_query: Query<(Entity, &Intersection)>,
     mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     mut request: EventReader<RequestVehicleSpawn>,
+    asset_server: Res<AssetServer>,
 ) {
     for _ in request.read() {
         let mut rng = rand::thread_rng();
@@ -465,8 +464,8 @@ fn spawn_vehicle(
 
             commands.spawn((
                 PbrBundle {
-                    mesh: meshes.add(Cuboid::new(VEHICLE_HEIGHT, VEHICLE_HEIGHT, VEHICLE_LENGTH)),
-                    material: materials.add(Color::linear_rgb(0.5, 0.5, 0.3)),
+                    mesh: asset_server.load("models/voxcar-1.gltf#Mesh0/Primitive0"),
+                    material: asset_server.load("models/voxcar-1.gltf#Material0"),
                     transform: Transform::from_translation(start_location),
                     ..default()
                 },
