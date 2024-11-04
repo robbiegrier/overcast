@@ -3,7 +3,6 @@ use bevy::prelude::*;
 use bevy::utils::HashSet;
 
 const LANE_MEDIAN_SIZE: f32 = 0.05;
-const LANE_SEP: f32 = 0.333;
 const LANE_CURB: f32 = 0.05;
 
 #[derive(Component, Debug)]
@@ -88,13 +87,11 @@ impl RoadSegment {
                 let b = a + dir_width;
                 let desired = a.lerp(b, t);
                 pos.with_x(desired).with_z(pos.z.clamp(cmin.z, cmax.z))
-                // pos.with_x(cmin.x + LANE_CURB + lane_stride).with_z(pos.z.clamp(cmin.z, cmax.z))
             } else {
                 let a = cmax.x - curbf;
                 let b = a - dir_width;
                 let desired = a.lerp(b, t);
                 pos.with_x(desired).with_z(pos.z.clamp(cmin.z, cmax.z))
-                // pos.with_x(cmax.x - LANE_CURB - lane_stride).with_z(pos.z.clamp(cmin.z, cmax.z))
             }
         } else {
             if dir == GDir::East {
@@ -102,13 +99,11 @@ impl RoadSegment {
                 let b = a + dir_width;
                 let desired = a.lerp(b, t);
                 pos.with_z(desired).with_x(pos.x.clamp(cmin.x, cmax.x))
-                // pos.with_z(cmin.z + LANE_CURB + lane_stride).with_x(pos.x.clamp(cmin.x, cmax.x))
             } else {
                 let a = cmax.z - curbf;
                 let b = a - dir_width;
                 let desired = a.lerp(b, t);
                 pos.with_z(desired).with_x(pos.x.clamp(cmin.x, cmax.x))
-                // pos.with_z(cmax.z - LANE_CURB - lane_stride).with_x(pos.x.clamp(cmin.x, cmax.x))
             }
         }
     }

@@ -1,9 +1,6 @@
 
 ## Todo
 
-### prefer least populated lane
-- minimize congestion if not turning 
-
 ### road placement - detect sides
 - attach road to existing roads along the length of the placed road
 

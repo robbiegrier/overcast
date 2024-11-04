@@ -4,6 +4,7 @@ use crate::grid::grid::*;
 use bevy::{
     core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping},
     input::mouse::MouseWheel,
+    pbr::ClusterConfig,
     prelude::*,
     render::view::{ColorGrading, ColorGradingGlobal, ColorGradingSection},
 };
@@ -65,7 +66,8 @@ impl Plugin for CameraPlugin {
 fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera3dBundle {
-            tonemapping: Tonemapping::ReinhardLuminance,
+            camera: Camera { hdr: false, ..default() },
+            tonemapping: Tonemapping::BlenderFilmic,
             color_grading: ColorGrading {
                 highlights: ColorGradingSection {
                     contrast: 0.5,
@@ -101,7 +103,13 @@ fn spawn_camera(mut commands: Commands) {
             transform: Transform::from_xyz(15.0, 15.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
         },
-        BloomSettings::OLD_SCHOOL,
+        ClusterConfig::FixedZ {
+            total: 4096,
+            z_slices: 1,
+            dynamic_resizing: true,
+            z_config: Default::default(),
+        },
+        BloomSettings::NATURAL,
         PlayerCameraController::new(),
     ));
 }

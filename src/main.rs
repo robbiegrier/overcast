@@ -10,9 +10,6 @@ mod ui;
 use bevy::prelude::*;
 
 fn main() {
-    let res = std::env::current_dir();
-    println!("{:?}", res.unwrap());
-
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(schedule::SchedulePlugin)

@@ -15,7 +15,6 @@ use rand::{
 };
 
 const VEHICLE_HEIGHT: f32 = 0.25;
-// const VEHICLE_LENGTH: f32 = VEHICLE_HEIGHT * 2.0;
 const VEHICLE_MAX_SPEED: f32 = 1.5;
 const MAX_SPEED_VARIATION: f32 = 0.5;
 const SPAWN_TIME_SECONDS: f32 = 0.25;
@@ -146,30 +145,30 @@ fn get_intersection_goal(intersection: &Intersection, direction: GDir, start_pos
     }
 }
 
-fn get_lane_for_turn(curr: &RoadSegment, next: &RoadSegment, prev: i32) -> i32 {
+fn get_lane_for_turn(curr: &RoadSegment, next: &RoadSegment, clamp: &RoadSegment, prev: i32) -> i32 {
     let z_less = next.area().center().z < curr.area().center().z;
     let x_less = next.area().center().x < curr.area().center().x;
     if curr.orientation == next.orientation {
-        prev.clamp(0, curr.num_lanes() - 1)
+        prev.clamp(0, clamp.num_lanes() - 1)
     } else if next.orientation == GAxis::X {
         match z_less {
             true => match x_less {
-                true => curr.num_lanes() - 1,
+                true => clamp.num_lanes() - 1,
                 false => 0,
             },
             false => match x_less {
-                false => curr.num_lanes() - 1,
+                false => clamp.num_lanes() - 1,
                 true => 0,
             },
         }
     } else {
         match x_less {
             true => match z_less {
-                false => curr.num_lanes() - 1,
+                false => clamp.num_lanes() - 1,
                 true => 0,
             },
             false => match z_less {
-                true => curr.num_lanes() - 1,
+                true => clamp.num_lanes() - 1,
                 false => 0,
             },
         }
@@ -205,7 +204,7 @@ fn update_speed(
         let slow_dist = 2.0;
         let stop_dist = 0.5;
         if let Some((other, hit)) = raycast.get_nearest_intersection() {
-            if let Ok((other_raycast)) = other_query.get(other) {
+            if let Ok(other_raycast) = other_query.get(other) {
                 if let Some((other2, _)) = other_raycast.get_nearest_intersection() {
                     if other2 == ent {
                         continue;
@@ -310,7 +309,7 @@ fn update_vehicles(
                     vehicle.checkpoint = get_intersection_goal(intersection, approach_dir, transform.translation);
 
                     if let Ok(next_segment) = segment_query.get(vehicle.path[vehicle.path_index + 2]) {
-                        vehicle.lane = get_lane_for_turn(segment, next_segment, vehicle.lane);
+                        vehicle.lane = get_lane_for_turn(segment, next_segment, segment, vehicle.lane);
                     }
 
                     let lane_pos = segment.clamp_to_lane(approach_dir, vehicle.lane, transform.translation);
@@ -332,7 +331,7 @@ fn update_vehicles(
                     let approach_dir = direction_to_area(next_segment, intersection.area()).inverse();
 
                     if let Ok(prev_segment) = segment_query.get(vehicle.path[vehicle.path_index - 1]) {
-                        vehicle.lane = get_lane_for_turn(prev_segment, next_segment, vehicle.lane);
+                        vehicle.lane = get_lane_for_turn(prev_segment, next_segment, next_segment, vehicle.lane);
                     }
 
                     vehicle.checkpoint = next_segment.clamp_to_lane(approach_dir, vehicle.lane, transform.translation);

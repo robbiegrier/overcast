@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_egui::egui::{epaint, Align2, Color32};
+use bevy_egui::egui::{epaint, Align2};
 use bevy_egui::{egui, EguiContexts, EguiPlugin};
 
 use crate::save::save_events::SaveRequest;
