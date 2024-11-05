@@ -15,9 +15,7 @@ use bevy::{
 use std::f32::consts::FRAC_PI_2;
 
 pub const ROAD_HEIGHT: f32 = 0.05;
-const ROAD_COLOR: Color = Color::linear_rgb(0.01, 0.01, 0.01);
-const ROAD_COLOR_ALT: Color = Color::linear_rgb(0.015, 0.015, 0.015);
-const INTER_COLOR: Color = Color::linear_rgb(0.02, 0.02, 0.02);
+pub const ROAD_TEXTURE_STRETCH: f32 = 5.0;
 
 pub struct RoadToolPlugin;
 
@@ -354,7 +352,7 @@ fn spawn_roads(
                     ..default()
                 }
             })),
-            uv_transform: Affine2::from_scale(Vec2::new(length as f32 / 5.0, 1.0)),
+            uv_transform: Affine2::from_scale(Vec2::new(length as f32 / ROAD_TEXTURE_STRETCH, 1.0)),
             ..default()
         };
 
