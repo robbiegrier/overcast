@@ -7,7 +7,11 @@ use crate::{
     types::{intersection::*, road_segment::*},
     ui::egui::MouseOver,
 };
-use bevy::prelude::*;
+use bevy::{
+    math::Affine2,
+    prelude::*,
+    render::texture::{ImageAddressMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor},
+};
 use std::f32::consts::FRAC_PI_2;
 
 pub const ROAD_HEIGHT: f32 = 0.05;
@@ -318,14 +322,54 @@ fn spawn_roads(
     mut grid_query: Query<&mut Grid>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
     let mut grid = grid_query.single_mut();
 
     for &RequestRoad { area, orientation } in spawner.read() {
+        let width = match orientation {
+            GAxis::Z => area.cell_dimensions().x,
+            GAxis::X => area.cell_dimensions().y,
+        };
+
+        let length = match orientation {
+            GAxis::Z => area.cell_dimensions().y,
+            GAxis::X => area.cell_dimensions().x,
+        };
+
+        let texture = match width {
+            6 => "textures/three_lanes.png",
+            4 => "textures/two_lanes.png",
+            _ => "textures/one_lane.png",
+        };
+
+        let material = StandardMaterial {
+            base_color_texture: Some(asset_server.load_with_settings(texture, |s: &mut _| {
+                *s = ImageLoaderSettings {
+                    sampler: ImageSampler::Descriptor(ImageSamplerDescriptor {
+                        address_mode_u: ImageAddressMode::Repeat,
+                        address_mode_v: ImageAddressMode::Repeat,
+                        ..default()
+                    }),
+                    ..default()
+                }
+            })),
+            uv_transform: Affine2::from_scale(Vec2::new(length as f32 / 5.0, 1.0)),
+            ..default()
+        };
+
         let model = PbrBundle {
-            mesh: meshes.add(Cuboid::new(area.dimensions().x, ROAD_HEIGHT, area.dimensions().y)),
-            material: materials.add(if orientation == GAxis::Z { ROAD_COLOR } else { ROAD_COLOR_ALT }),
-            transform: Transform::from_translation(area.center().with_y(ROAD_HEIGHT / 2.0)),
+            mesh: meshes.add(match orientation {
+                GAxis::Z => Cuboid::new(area.dimensions().y, ROAD_HEIGHT, area.dimensions().x),
+                GAxis::X => Cuboid::new(area.dimensions().x, ROAD_HEIGHT, area.dimensions().y),
+            }),
+            material: materials.add(material),
+            transform: Transform::from_translation(area.center().with_y(ROAD_HEIGHT / 2.0)).with_rotation(
+                match orientation {
+                    GAxis::Z => Quat::from_rotation_y(std::f32::consts::PI / 2.0),
+                    GAxis::X => Quat::IDENTITY,
+                },
+            ),
             ..default()
         };
 
@@ -342,11 +386,12 @@ fn spawn_intersections(
     mut grid_query: Query<&mut Grid>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
 ) {
     for &RequestIntersection { area } in spawner.read() {
         let model = PbrBundle {
             mesh: meshes.add(Cuboid::new(area.dimensions().x, ROAD_HEIGHT, area.dimensions().y)),
-            material: materials.add(INTER_COLOR),
+            material: materials.add(asset_server.load("textures/intersection.png")),
             transform: Transform::from_translation(area.center().with_y(ROAD_HEIGHT / 2.0)),
             ..default()
         };

@@ -2,8 +2,8 @@ use crate::{grid::grid_area::*, grid::grid_cell::*, grid::orientation::*};
 use bevy::prelude::*;
 use bevy::utils::HashSet;
 
-const LANE_MEDIAN_SIZE: f32 = 0.05;
-const LANE_CURB: f32 = 0.05;
+const LANE_MEDIAN_SIZE: f32 = 0.0;
+const LANE_CURB: f32 = 0.0;
 
 #[derive(Component, Debug)]
 pub struct RoadSegment {
