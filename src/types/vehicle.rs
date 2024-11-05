@@ -16,8 +16,9 @@ use rand::{
 
 const VEHICLE_HEIGHT: f32 = 0.25;
 const VEHICLE_MAX_SPEED: f32 = 1.5;
+const VEHICLE_MIN_SPEED: f32 = 0.05;
 const MAX_SPEED_VARIATION: f32 = 0.5;
-const SPAWN_TIME_SECONDS: f32 = 0.25;
+const SPAWN_TIME_SECONDS: f32 = 0.5;
 const INTERSECTION_OFFSET: f32 = 0.2;
 
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
@@ -61,7 +62,7 @@ pub struct Vehicle {
     pub path: Vec<Entity>,
     pub path_index: usize,
     pub speed: f32,
-    pub max_speed: f32,
+    pub speed_multiplier: f32,
     pub follow: Vec3,
     pub checkpoint: Vec3,
     pub lane: i32,
@@ -73,7 +74,7 @@ impl Vehicle {
             path,
             path_index: 0,
             speed: 0.0,
-            max_speed,
+            speed_multiplier: max_speed,
             follow: Vec3::ZERO,
             checkpoint: Vec3::ZERO,
             lane: 0,
@@ -197,12 +198,18 @@ fn update_speed(
     mut vehicle_query: Query<(Entity, &mut Vehicle, &RaycastSource<VehicleRaycastSet>)>,
     other_query: Query<&RaycastSource<VehicleRaycastSet>, With<Vehicle>>,
     time: Res<Time>,
+    segment_query: Query<&RoadSegment>,
 ) {
     for (ent, mut vehicle, raycast) in &mut vehicle_query {
-        vehicle.speed = vehicle.speed.lerp(vehicle.max_speed, time.delta_seconds() * 0.5);
+        let mut target_speed = 1.0 * vehicle.speed_multiplier;
+
+        if let Ok(segment) = segment_query.get(vehicle.path[vehicle.path_index]) {
+            target_speed = segment.speed_limit() * vehicle.speed_multiplier;
+        }
+
+        vehicle.speed = vehicle.speed.lerp(target_speed, time.delta_seconds() * 0.5);
 
         let slow_dist = 2.0;
-        let stop_dist = 0.5;
         if let Some((other, hit)) = raycast.get_nearest_intersection() {
             if let Ok(other_raycast) = other_query.get(other) {
                 if let Some((other2, _)) = other_raycast.get_nearest_intersection() {
@@ -214,11 +221,7 @@ fn update_speed(
 
             if hit.distance() < slow_dist {
                 vehicle.speed -= (slow_dist - hit.distance()).max(0.0) * time.delta_seconds();
-                vehicle.speed = vehicle.speed.max(0.0);
-            }
-
-            if hit.distance() < stop_dist {
-                vehicle.speed = 0.0;
+                vehicle.speed = vehicle.speed.max(VEHICLE_MIN_SPEED);
             }
         }
     }
@@ -365,17 +368,17 @@ fn spawn_vehicle_on_key_press(keyboard: Res<ButtonInput<KeyCode>>, mut request: 
 }
 
 fn spawn_vehicle_on_timer(
-    keyboard: Res<ButtonInput<KeyCode>>,
+    // keyboard: Res<ButtonInput<KeyCode>>,
     mut request: EventWriter<RequestVehicleSpawn>,
     time: Res<Time>,
     mut spawn_timer: ResMut<SpawnTimer>,
 ) {
-    if keyboard.pressed(KeyCode::KeyL) {
-        spawn_timer.timer.tick(time.delta());
-        if spawn_timer.timer.just_finished() {
-            request.send(RequestVehicleSpawn);
-        }
+    // if keyboard.pressed(KeyCode::KeyL) {
+    spawn_timer.timer.tick(time.delta());
+    if spawn_timer.timer.just_finished() {
+        request.send(RequestVehicleSpawn);
     }
+    // }
 }
 
 fn spawn_vehicle(
@@ -480,7 +483,8 @@ fn spawn_vehicle(
             path.reverse();
 
             let start_location = building_query.get(path[0]).unwrap().1.pos().with_y(ROAD_HEIGHT + (VEHICLE_HEIGHT));
-            let max_speed = VEHICLE_MAX_SPEED + rand::thread_rng().gen_range(-MAX_SPEED_VARIATION..MAX_SPEED_VARIATION);
+            let max_speed =
+                VEHICLE_MAX_SPEED + rand::thread_rng().gen_range(1.0 - MAX_SPEED_VARIATION..1.0 + MAX_SPEED_VARIATION);
 
             commands.spawn((
                 PbrBundle {

@@ -43,3 +43,6 @@
 
 ### basic ui
 - buttons and text for keybinds to change modes and toggle visualizations
+
+### lane lines
+- overlay roads with appropriate lane lines

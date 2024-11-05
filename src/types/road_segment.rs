@@ -50,6 +50,10 @@ impl RoadSegment {
         self.drive_width() / 2
     }
 
+    pub fn speed_limit(&self) -> f32 {
+        self.drive_width() as f32 * 0.25
+    }
+
     pub fn get_intersection_area(&self, turn_to_area: GridArea) -> GridArea {
         match self.orientation {
             GAxis::Z => GridArea::new(

@@ -4,9 +4,6 @@
 ### road placement - detect sides
 - attach road to existing roads along the length of the placed road
 
-### lane lines
-- overlay roads with appropriate lane lines
-
 ### update vehicle paths on road change
 - vehicles observe roads and detect changes
 - recalculate paths if the roads change
