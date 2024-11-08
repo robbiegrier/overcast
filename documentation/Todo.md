@@ -6,7 +6,7 @@
 - start with single incoming direction
 - vehicle ai can inspect state of interesection and stop or go
 
-## Improvements
+## Potential Improvements
 
 ### road placement - detect sides
 - attach road to existing roads along the length of the placed road

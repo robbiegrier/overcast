@@ -157,7 +157,7 @@ fn get_lane_for_turn(curr: &RoadSegment, next: &RoadSegment, clamp: &RoadSegment
     let z_less = next.area().center().z < curr.area().center().z;
     let x_less = next.area().center().x < curr.area().center().x;
     if curr.orientation == next.orientation {
-        prev.clamp(0, clamp.num_lanes() - 1)
+        prev.clamp(0, (clamp.num_lanes() - 2).max(0))
     } else if next.orientation == GAxis::X {
         match z_less {
             true => match x_less {
