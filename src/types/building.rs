@@ -5,6 +5,7 @@ use bevy::{prelude::*, utils::HashSet};
 pub struct Building {
     pub area: GridArea,
     pub roads: HashSet<Entity>,
+    pub observers: HashSet<Entity>,
 }
 
 impl Building {
@@ -12,6 +13,7 @@ impl Building {
         Self {
             area,
             roads: HashSet::new(),
+            observers: HashSet::new(),
         }
     }
 

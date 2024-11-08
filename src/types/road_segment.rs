@@ -11,6 +11,7 @@ pub struct RoadSegment {
     pub area: GridArea,
     pub ends: [Option<Entity>; 2],
     pub dests: HashSet<Entity>,
+    pub observers: HashSet<Entity>,
 }
 
 impl RoadSegment {
@@ -20,6 +21,7 @@ impl RoadSegment {
             area,
             ends: [None; 2],
             dests: HashSet::new(),
+            observers: HashSet::new(),
         }
     }
 

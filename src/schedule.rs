@@ -14,6 +14,7 @@ impl Plugin for SchedulePlugin {
                 UpdateStage::Spawning,
                 UpdateStage::AfterSpawning,
                 UpdateStage::Analyze,
+                UpdateStage::UpdatePathing,
                 UpdateStage::DestroyEntities,
                 UpdateStage::Visualize,
             )
@@ -36,6 +37,7 @@ pub enum UpdateStage {
     Spawning,
     AfterSpawning,
     Analyze,
+    UpdatePathing,
     DestroyEntities,
     Visualize,
 }

@@ -1,4 +1,5 @@
 use crate::{
+    graph::road_graph_events::{OnBuildingDestroyed, OnIntersectionDestroyed, OnRoadDestroyed},
     grid::{grid_area::GridArea, orientation::*},
     schedule::UpdateStage,
     tools::road_tool::ROAD_HEIGHT,
@@ -46,6 +47,12 @@ impl Plugin for VehiclePlugin {
                         .in_set(UpdateStage::UserInput),
                     (spawn_vehicle).in_set(UpdateStage::Spawning),
                     (update_vehicles, update_speed, execute_movement, execute_turning).in_set(UpdateStage::AiBehavior),
+                    (
+                        handle_building_destroyed,
+                        handle_road_segment_destroyed,
+                        handle_intersection_destroyed,
+                    )
+                        .in_set(UpdateStage::UpdatePathing),
                     (visualize_path, visualize_vehicle_ai)
                         .in_set(UpdateStage::Visualize)
                         .run_if(in_state(AiVisualizationState::Visualize)),
@@ -382,9 +389,9 @@ fn spawn_vehicle_on_timer(
 }
 
 fn spawn_vehicle(
-    building_query: Query<(Entity, &Building)>,
-    segment_query: Query<(Entity, &RoadSegment)>,
-    inter_query: Query<(Entity, &Intersection)>,
+    mut building_query: Query<(Entity, &mut Building)>,
+    mut segment_query: Query<(Entity, &mut RoadSegment)>,
+    mut inter_query: Query<(Entity, &mut Intersection)>,
     mut commands: Commands,
     mut request: EventReader<RequestVehicleSpawn>,
     asset_server: Res<AssetServer>,
@@ -399,8 +406,8 @@ fn spawn_vehicle(
             return;
         }
 
-        let (start_entity, _start) = choose[0];
-        let (end_entity, _end) = choose[1];
+        let start_entity = choose[0].0;
+        let end_entity = choose[1].0;
 
         let mut frontier = Vec::<Entity>::new();
         let mut visited = HashSet::<Entity>::new();
@@ -486,17 +493,80 @@ fn spawn_vehicle(
             let max_speed =
                 VEHICLE_MAX_SPEED + rand::thread_rng().gen_range(1.0 - MAX_SPEED_VARIATION..1.0 + MAX_SPEED_VARIATION);
 
-            commands.spawn((
-                PbrBundle {
-                    mesh: asset_server.load("models/voxcar-1.gltf#Mesh0/Primitive0"),
-                    material: asset_server.load("models/voxcar-1.gltf#Material0"),
-                    transform: Transform::from_translation(start_location),
-                    ..default()
-                },
-                Vehicle::new(path, max_speed),
-                RaycastMesh::<VehicleRaycastSet>::default(),
-                RaycastSource::<VehicleRaycastSet>::new_transform_empty(),
-            ));
+            let spawn = commands
+                .spawn((
+                    PbrBundle {
+                        mesh: asset_server.load("models/voxcar-1.gltf#Mesh0/Primitive0"),
+                        material: asset_server.load("models/voxcar-1.gltf#Material0"),
+                        transform: Transform::from_translation(start_location),
+                        ..default()
+                    },
+                    Vehicle::new(path.clone(), max_speed),
+                    RaycastMesh::<VehicleRaycastSet>::default(),
+                    RaycastSource::<VehicleRaycastSet>::new_transform_empty(),
+                ))
+                .id();
+
+            for step in path {
+                if let Ok((_, mut building)) = building_query.get_mut(step) {
+                    building.observers.insert(spawn);
+                } else if let Ok((_, mut segment)) = segment_query.get_mut(step) {
+                    segment.observers.insert(spawn);
+                } else if let Ok((_, mut inter)) = inter_query.get_mut(step) {
+                    inter.observers.insert(spawn);
+                }
+            }
+        }
+    }
+}
+
+fn handle_building_destroyed(
+    mut event: EventReader<OnBuildingDestroyed>,
+    building_query: Query<&Building>,
+    mut commands: Commands,
+) {
+    for &OnBuildingDestroyed(ent) in event.read() {
+        if let Ok(building) = building_query.get(ent) {
+            for observer in &building.observers {
+                if let Some(vehicle_ref) = commands.get_entity(*observer) {
+                    println!("Deleting observer on building destroyed");
+                    vehicle_ref.despawn_recursive();
+                }
+            }
+        }
+    }
+}
+
+fn handle_road_segment_destroyed(
+    mut event: EventReader<OnRoadDestroyed>,
+    segment_query: Query<&RoadSegment>,
+    mut commands: Commands,
+) {
+    for &OnRoadDestroyed(ent) in event.read() {
+        if let Ok(segment) = segment_query.get(ent) {
+            for observer in &segment.observers {
+                if let Some(vehicle_ref) = commands.get_entity(*observer) {
+                    println!("Deleting observer on segment destroyed");
+                    vehicle_ref.despawn_recursive();
+                }
+            }
+        }
+    }
+}
+
+fn handle_intersection_destroyed(
+    mut event: EventReader<OnIntersectionDestroyed>,
+    inter_query: Query<&Intersection>,
+    mut commands: Commands,
+) {
+    for &OnIntersectionDestroyed(ent) in event.read() {
+        if let Ok(inter) = inter_query.get(ent) {
+            for observer in &inter.observers {
+                if let Some(vehicle_ref) = commands.get_entity(*observer) {
+                    println!("Deleting observer on inter destroyed");
+                    vehicle_ref.despawn_recursive();
+                }
+            }
         }
     }
 }

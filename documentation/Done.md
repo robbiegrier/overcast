@@ -46,3 +46,7 @@
 
 ### lane lines
 - overlay roads with appropriate lane lines
+
+### update vehicle paths on road change
+- vehicles observe roads and detect changes
+- delete vehicles on change

@@ -1,19 +1,15 @@
 
 ## Todo
 
-### road placement - detect sides
-- attach road to existing roads along the length of the placed road
-
-### update vehicle paths on road change
-- vehicles observe roads and detect changes
-- recalculate paths if the roads change
-
 ### intersection rules
 - rotate with simple timer
 - start with single incoming direction
 - vehicle ai can inspect state of interesection and stop or go
 
 ## Improvements
+
+### road placement - detect sides
+- attach road to existing roads along the length of the placed road
 
 ### road joints
 - attach roads using a joint system
