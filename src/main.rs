@@ -15,6 +15,7 @@ fn main() {
         .add_plugins(schedule::SchedulePlugin)
         .add_plugins(graph::road_graph::RoadGraphPlugin)
         .add_plugins(graphics::camera::CameraPlugin)
+        .add_plugins(graphics::models::ModelPlugin)
         .add_plugins(grid::grid::GridPlugin)
         .add_plugins(types::vehicle::VehiclePlugin)
         .add_plugins(tools::toolbar::ToolbarPlugin)

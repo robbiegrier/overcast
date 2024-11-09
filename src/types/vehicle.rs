@@ -1,5 +1,6 @@
 use crate::{
     graph::road_graph_events::{OnBuildingDestroyed, OnIntersectionDestroyed, OnRoadDestroyed},
+    graphics::models::Models,
     grid::{grid_area::GridArea, orientation::*},
     schedule::UpdateStage,
     tools::road_tool::ROAD_HEIGHT,
@@ -395,6 +396,7 @@ fn spawn_vehicle(
     mut commands: Commands,
     mut request: EventReader<RequestVehicleSpawn>,
     asset_server: Res<AssetServer>,
+    models: Res<Models>,
 ) {
     for _ in request.read() {
         let mut rng = rand::thread_rng();
@@ -493,12 +495,16 @@ fn spawn_vehicle(
             let max_speed =
                 VEHICLE_MAX_SPEED + rand::thread_rng().gen_range(1.0 - MAX_SPEED_VARIATION..1.0 + MAX_SPEED_VARIATION);
 
+            let model = &models.vehicle_models.choose(&mut rng).unwrap();
             let spawn = commands
                 .spawn((
                     PbrBundle {
-                        mesh: asset_server.load("models/voxcar-1.gltf#Mesh0/Primitive0"),
-                        material: asset_server.load("models/voxcar-1.gltf#Material0"),
-                        transform: Transform::from_translation(start_location),
+                        mesh: asset_server.load(model.mesh.clone()),
+                        material: asset_server.load(model.material.clone()),
+                        transform: Transform::from_translation(
+                            start_location.with_y(start_location.y + model.vertical_offset),
+                        )
+                        .with_scale(Vec3::ONE * model.scale),
                         ..default()
                     },
                     Vehicle::new(path.clone(), max_speed),
