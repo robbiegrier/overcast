@@ -88,8 +88,6 @@ impl RoadSegment {
         let dir_width = ((lanesf + 1.0) - medianf) - curbf;
         let t = if lanesf == 0.0 { 0.0 } else { lane_ind / lanesf };
 
-        // println!("{:?} / {:?} = {:?}", lane_ind, lanesf, t);
-
         if self.orientation == GAxis::Z {
             if dir == GDir::North {
                 let a = cmin.x + curbf;

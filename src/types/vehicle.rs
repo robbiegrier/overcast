@@ -569,7 +569,6 @@ fn handle_building_destroyed(
         if let Ok(building) = building_query.get(ent) {
             for observer in &building.observers {
                 if let Some(vehicle_ref) = commands.get_entity(*observer) {
-                    println!("Deleting observer on building destroyed");
                     vehicle_ref.despawn_recursive();
                 }
             }
@@ -586,7 +585,6 @@ fn handle_road_segment_destroyed(
         if let Ok(segment) = segment_query.get(ent) {
             for observer in &segment.observers {
                 if let Some(vehicle_ref) = commands.get_entity(*observer) {
-                    println!("Deleting observer on segment destroyed");
                     vehicle_ref.despawn_recursive();
                 }
             }
@@ -603,7 +601,6 @@ fn handle_intersection_destroyed(
         if let Ok(inter) = inter_query.get(ent) {
             for observer in &inter.observers {
                 if let Some(vehicle_ref) = commands.get_entity(*observer) {
-                    println!("Deleting observer on inter destroyed");
                     vehicle_ref.despawn_recursive();
                 }
             }

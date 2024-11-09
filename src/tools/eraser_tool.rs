@@ -148,7 +148,6 @@ where
 {
     for generic in event_reader.read() {
         let entity: Entity = *generic.as_ref();
-        println!("Finally remove entity {:?}", entity);
         commands.entity(entity).despawn_recursive();
     }
 }

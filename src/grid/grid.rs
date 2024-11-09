@@ -160,7 +160,6 @@ where
 
     for generic in destroy_event.read() {
         let entity: Entity = *generic.as_ref();
-        println!("Clear from grid {:?}", entity);
         grid.erase(entity);
     }
 }

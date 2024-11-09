@@ -272,12 +272,10 @@ fn handle_end_drag(
         if let Some(adjacent_entity) = grid.single_entity_in_area(tool.drag_start_attach_area()) {
             if let Ok(adj) = segment_query.get(adjacent_entity) {
                 if adj.orientation != tool.orientation {
-                    // println!("at start, create intersection");
                     let intersection_area = adj.get_intersection_area(tool.drag_area);
                     splitter.send(RequestRoadSplit::new(adjacent_entity, intersection_area));
                     intersector.send(RequestIntersection::new(intersection_area));
                 } else if adj.drive_width() == tool.width {
-                    // println!("at start, create extension");
                     extend_start = true;
                     extend_entities.push(adjacent_entity);
                 }
@@ -287,12 +285,10 @@ fn handle_end_drag(
         if let Some(adjacent_entity) = grid.single_entity_in_area(tool.drag_end_attach_area()) {
             if let Ok(adj) = segment_query.get(adjacent_entity) {
                 if adj.orientation != tool.orientation {
-                    // println!("at end, create intersection");
                     let intersection_area = adj.get_intersection_area(tool.drag_area);
                     splitter.send(RequestRoadSplit::new(adjacent_entity, intersection_area));
                     intersector.send(RequestIntersection::new(intersection_area));
                 } else if adj.drive_width() == tool.width {
-                    // println!("at end, create extension");
                     extend_end = true;
                     extend_entities.push(adjacent_entity);
                 }

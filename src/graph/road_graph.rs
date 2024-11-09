@@ -127,8 +127,6 @@ pub fn remove_roads_from_graph(
 ) {
     for &OnRoadDestroyed(entity) in event.read() {
         if let Ok(segment) = segment_query.get(entity) {
-            println!("removing road from graph {:?}", entity.index());
-
             for slot in &segment.ends {
                 if let Some(end) = slot {
                     if let Ok(mut inter) = inter_query.get_mut(*end) {
@@ -159,8 +157,6 @@ pub fn remove_intersections_from_graph(
 ) {
     for &OnIntersectionDestroyed(entity) in event.read() {
         if let Ok(inter) = inter_query.get(entity) {
-            println!("removing intersection from graph {:?}", entity.index());
-
             for slot in &inter.roads {
                 if let Some(road) = slot {
                     if let Ok(mut segment) = segment_query.get_mut(*road) {
@@ -183,8 +179,6 @@ pub fn remove_buildings_from_graph(
 ) {
     for &OnBuildingDestroyed(entity) in event.read() {
         if let Ok(building) = building_query.get(entity) {
-            println!("removing building from graph {:?}", entity.index());
-
             for road in &building.roads {
                 if let Ok(mut segment) = segment_query.get_mut(*road) {
                     segment.dests.remove(&entity);
