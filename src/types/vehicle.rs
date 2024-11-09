@@ -18,7 +18,7 @@ use rand::{
 
 const VEHICLE_HEIGHT: f32 = 0.25;
 const VEHICLE_MAX_SPEED: f32 = 1.5;
-const VEHICLE_MIN_SPEED: f32 = 0.05;
+const VEHICLE_MIN_SPEED: f32 = 0.01;
 const MAX_SPEED_VARIATION: f32 = 0.5;
 const SPAWN_TIME_SECONDS: f32 = 0.5;
 const INTERSECTION_OFFSET: f32 = 0.2;
@@ -220,6 +220,7 @@ fn update_speed(
     other_query: Query<&RaycastSource<VehicleRaycastSet>, With<Vehicle>>,
     time: Res<Time>,
     segment_query: Query<&RoadSegment>,
+    mut commands: Commands,
 ) {
     for (ent, mut vehicle, raycast) in &mut vehicle_query {
         let mut target_speed = 1.0 * vehicle.speed_multiplier;
@@ -230,13 +231,11 @@ fn update_speed(
 
         vehicle.speed = vehicle.speed.lerp(target_speed, time.delta_seconds() * 0.5);
 
-        let slow_dist = 4.0;
+        let slow_dist = 3.0;
         if let Some((other, hit)) = raycast.get_nearest_intersection() {
             if let Ok(other_raycast) = other_query.get(other) {
                 if let Some((other2, _)) = other_raycast.get_nearest_intersection() {
                     if other2 == ent {
-                        continue;
-                    } else if hit.distance() < 0.5 {
                         continue;
                     }
                 }
@@ -245,6 +244,10 @@ fn update_speed(
             if hit.distance() < slow_dist {
                 vehicle.speed -= (slow_dist - hit.distance()).max(0.0) * time.delta_seconds();
                 vehicle.speed = vehicle.speed.max(VEHICLE_MIN_SPEED);
+            }
+
+            if hit.distance() < 0.001 {
+                commands.entity(ent).despawn_recursive();
             }
         }
     }
