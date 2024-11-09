@@ -198,7 +198,7 @@ fn get_lane_for_turn(curr: &RoadSegment, next: &RoadSegment, clamp: &RoadSegment
 }
 
 fn execute_turning(mut vehicle_query: Query<(&Vehicle, &mut Transform)>, time: Res<Time>) {
-    for (vehicle, mut transform) in &mut vehicle_query {
+    vehicle_query.par_iter_mut().for_each(|(vehicle, mut transform)| {
         let follow_vec = vehicle.follow.with_y(0.0) - transform.translation.with_y(0.0);
         let follow_dir = follow_vec.normalize();
         let dot = follow_dir.dot(transform.left().as_vec3());
@@ -212,7 +212,7 @@ fn execute_turning(mut vehicle_query: Query<(&Vehicle, &mut Transform)>, time: R
         } else {
             transform.look_at(vehicle.follow, Vec3::new(0.0, 1.0, 0.0));
         }
-    }
+    });
 }
 
 fn update_speed(
@@ -254,10 +254,10 @@ fn update_speed(
 }
 
 fn execute_movement(mut vehicle_query: Query<(&Vehicle, &mut Transform)>, time: Res<Time>) {
-    for (vehicle, mut transform) in &mut vehicle_query {
+    vehicle_query.par_iter_mut().for_each(|(vehicle, mut transform)| {
         let translate_dir = transform.forward().as_vec3();
         transform.translation += vehicle.speed * translate_dir * time.delta_seconds();
-    }
+    });
 }
 
 fn toggle_ai_vizualization(
@@ -304,9 +304,13 @@ fn update_vehicles(
     intersection_query: Query<&Intersection>,
     building_query: Query<&Building>,
 ) {
-    for (entity, mut vehicle, mut transform) in &mut vehicle_query {
+    for (entity, vehicle, _) in &vehicle_query {
         if vehicle.path_index >= vehicle.path.len() - 1 {
             commands.entity(entity).despawn_recursive();
+        }
+    }
+    vehicle_query.par_iter_mut().for_each(|(_, mut vehicle, mut transform)| {
+        if vehicle.path_index >= vehicle.path.len() - 1 {
             return;
         }
 
@@ -391,7 +395,7 @@ fn update_vehicles(
                 }
             }
         }
-    }
+    });
 }
 
 #[derive(Event, Debug)]
