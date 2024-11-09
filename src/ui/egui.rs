@@ -60,6 +60,8 @@ pub fn update_toolbar_window(
     mut contexts: EguiContexts,
     mut change_tool: EventWriter<ChangeToolRequest>,
     mut save: EventWriter<SaveRequest>,
+    mut next_state: ResMut<NextState<VehicleSpawnState>>,
+    state: Res<State<VehicleSpawnState>>,
 ) {
     let Some(ctx) = contexts.try_ctx_mut() else {
         return;
@@ -93,6 +95,21 @@ pub fn update_toolbar_window(
 
             if ui.add(egui::Button::new("[ 3 ] Bulldozer").min_size(tool_button_size)).clicked() {
                 change_tool.send(ChangeToolRequest(ToolState::Eraser));
+            }
+            ui.add_space(20.0);
+
+            let spawn_text = match state.get() {
+                VehicleSpawnState::On => "[ L ] Spawning (On)",
+                VehicleSpawnState::Off => "[ L ] Spawning (Off)",
+            };
+
+            if ui.add(egui::Button::new(spawn_text).min_size(tool_button_size)).clicked() {
+                next_state.set({
+                    match state.get() {
+                        VehicleSpawnState::On => VehicleSpawnState::Off,
+                        VehicleSpawnState::Off => VehicleSpawnState::On,
+                    }
+                });
             }
             ui.add_space(20.0);
             ui.label("[Left Mouse]: Use tool");

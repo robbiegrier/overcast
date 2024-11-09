@@ -30,6 +30,13 @@ pub enum AiVisualizationState {
     Hide,
 }
 
+#[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
+pub enum VehicleSpawnState {
+    #[default]
+    Off,
+    On,
+}
+
 pub struct VehiclePlugin;
 
 impl Plugin for VehiclePlugin {
@@ -37,6 +44,7 @@ impl Plugin for VehiclePlugin {
         app.add_plugins(DeferredRaycastingPlugin::<VehicleRaycastSet>::default())
             .insert_resource(RaycastPluginState::<VehicleRaycastSet>::default())
             .init_state::<AiVisualizationState>()
+            .init_state::<VehicleSpawnState>()
             .add_event::<RequestVehicleSpawn>()
             .insert_resource(SpawnTimer {
                 timer: Timer::from_seconds(SPAWN_TIME_SECONDS, TimerMode::Repeating),
@@ -44,9 +52,14 @@ impl Plugin for VehiclePlugin {
             .add_systems(
                 Update,
                 (
-                    (toggle_ai_vizualization, spawn_vehicle_on_key_press, spawn_vehicle_on_timer)
+                    (
+                        toggle_ai_vizualization,
+                        toggle_vehicle_spawning,
+                        spawn_vehicle_on_key_press,
+                        spawn_vehicle_on_timer,
+                    )
                         .in_set(UpdateStage::UserInput),
-                    (spawn_vehicle).in_set(UpdateStage::Spawning),
+                    (spawn_vehicle.run_if(in_state(VehicleSpawnState::On))).in_set(UpdateStage::Spawning),
                     (update_vehicles, update_speed, execute_movement, execute_turning).in_set(UpdateStage::AiBehavior),
                     (
                         handle_building_destroyed,
@@ -217,11 +230,13 @@ fn update_speed(
 
         vehicle.speed = vehicle.speed.lerp(target_speed, time.delta_seconds() * 0.5);
 
-        let slow_dist = 2.0;
+        let slow_dist = 4.0;
         if let Some((other, hit)) = raycast.get_nearest_intersection() {
             if let Ok(other_raycast) = other_query.get(other) {
                 if let Some((other2, _)) = other_raycast.get_nearest_intersection() {
                     if other2 == ent {
+                        continue;
+                    } else if hit.distance() < 0.5 {
                         continue;
                     }
                 }
@@ -252,6 +267,21 @@ fn toggle_ai_vizualization(
             match state.get() {
                 AiVisualizationState::Hide => AiVisualizationState::Visualize,
                 AiVisualizationState::Visualize => AiVisualizationState::Hide,
+            }
+        });
+    }
+}
+
+fn toggle_vehicle_spawning(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut next_state: ResMut<NextState<VehicleSpawnState>>,
+    state: Res<State<VehicleSpawnState>>,
+) {
+    if keyboard.just_pressed(KeyCode::KeyL) {
+        next_state.set({
+            match state.get() {
+                VehicleSpawnState::On => VehicleSpawnState::Off,
+                VehicleSpawnState::Off => VehicleSpawnState::On,
             }
         });
     }
@@ -376,17 +406,14 @@ fn spawn_vehicle_on_key_press(keyboard: Res<ButtonInput<KeyCode>>, mut request: 
 }
 
 fn spawn_vehicle_on_timer(
-    // keyboard: Res<ButtonInput<KeyCode>>,
     mut request: EventWriter<RequestVehicleSpawn>,
     time: Res<Time>,
     mut spawn_timer: ResMut<SpawnTimer>,
 ) {
-    // if keyboard.pressed(KeyCode::KeyL) {
     spawn_timer.timer.tick(time.delta());
     if spawn_timer.timer.just_finished() {
         request.send(RequestVehicleSpawn);
     }
-    // }
 }
 
 fn spawn_vehicle(
