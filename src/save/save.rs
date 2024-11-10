@@ -59,6 +59,7 @@ pub fn load_from_disk(
             }
 
             for (area, orient) in save_data.roads {
+                println!("load road");
                 segment_event.send(RequestRoad::new(area, orient));
             }
 

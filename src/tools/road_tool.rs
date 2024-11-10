@@ -30,14 +30,16 @@ impl Plugin for RoadToolPlugin {
             .add_systems(
                 Update,
                 (
-                    (update_ground_position).in_set(UpdateStage::UpdateView).run_if(in_state(MouseOver::World)),
-                    (adjust_tool_size, change_orientation, handle_action)
-                        .in_set(UpdateStage::UserInput)
-                        .run_if(in_state(MouseOver::World)),
+                    (
+                        (update_ground_position).in_set(UpdateStage::UpdateView).run_if(in_state(MouseOver::World)),
+                        (adjust_tool_size, change_orientation, handle_action)
+                            .in_set(UpdateStage::UserInput)
+                            .run_if(in_state(MouseOver::World)),
+                    )
+                        .run_if(in_state(ToolState::Road)),
                     (split_roads, extend_roads, bridge_roads).in_set(UpdateStage::HighLevelSideEffects),
                     (spawn_roads, spawn_intersections).in_set(UpdateStage::Spawning),
-                )
-                    .run_if(in_state(ToolState::Road)),
+                ),
             );
     }
 }
@@ -321,6 +323,7 @@ fn spawn_roads(
     let mut grid = grid_query.single_mut();
 
     for &RequestRoad { area, orientation } in spawner.read() {
+        println!("spawn road");
         let width = match orientation {
             GAxis::Z => area.cell_dimensions().x,
             GAxis::X => area.cell_dimensions().y,

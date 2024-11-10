@@ -64,9 +64,14 @@ impl Plugin for CameraPlugin {
 }
 
 fn spawn_camera(mut commands: Commands) {
+    let clear = Color::srgb(0.25, 0.25, 0.25);
     commands.spawn((
         Camera3dBundle {
-            camera: Camera { hdr: false, ..default() },
+            camera: Camera {
+                hdr: false,
+                clear_color: ClearColorConfig::Custom(clear),
+                ..default()
+            },
             tonemapping: Tonemapping::BlenderFilmic,
             color_grading: ColorGrading {
                 highlights: ColorGradingSection {
@@ -102,6 +107,16 @@ fn spawn_camera(mut commands: Commands) {
             },
             transform: Transform::from_xyz(15.0, 15.0, 15.0).looking_at(Vec3::ZERO, Vec3::Y),
             ..default()
+        },
+        FogSettings {
+            color: clear.mix(&Color::BLACK, 0.2),
+            directional_light_color: Color::srgba(1.0, 0.95, 0.85, 0.5),
+            directional_light_exponent: 100.0,
+            falloff: FogFalloff::from_visibility_colors(
+                35.0,                       // distance in world units up to which objects retain visibility (>= 5% contrast)
+                Color::srgb(0.5, 0.5, 0.6), // atmospheric extinction color (after light is lost due to absorption by atmospheric particles)
+                Color::srgb(0.8, 0.8, 0.9), // atmospheric inscattering color (light gained due to scattering from the sun)
+            ),
         },
         ClusterConfig::FixedZ {
             total: 4096,

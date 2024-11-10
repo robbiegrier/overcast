@@ -9,9 +9,9 @@ use bevy::prelude::*;
 #[derive(States, Default, Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum ToolState {
     Building,
-    #[default]
     Road,
     Eraser,
+    #[default]
     View,
 }
 
