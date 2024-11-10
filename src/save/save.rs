@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
 
-const SAVEFILE: &str = "saves/world.json";
+const SAVEFILE: &str = "assets/saves/world.json";
 
 pub struct SavePlugin;
 

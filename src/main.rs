@@ -11,7 +11,10 @@ use bevy::prelude::*;
 
 fn main() {
     App::new()
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(AssetPlugin {
+            meta_check: bevy::asset::AssetMetaCheck::Never,
+            ..default()
+        }))
         .add_plugins(schedule::SchedulePlugin)
         .add_plugins(graph::road_graph::RoadGraphPlugin)
         .add_plugins(graphics::camera::CameraPlugin)
