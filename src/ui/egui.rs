@@ -70,16 +70,18 @@ pub fn update_toolbar_window(
     egui::Window::new("Tools")
         .resizable(false)
         .collapsible(true)
-        .default_open(false)
+        .default_open(true)
         .anchor(Align2::LEFT_BOTTOM, (0.0, 0.0))
         .constrain(true)
         .movable(false)
         .show(ctx, |ui| {
             let tool_button_size = egui::Vec2::new(100.0, 10.0);
 
+            #[cfg(not(target_arch = "wasm32"))]
             if ui.add(egui::Button::new("[ F5 ] Save Game").min_size(tool_button_size)).clicked() {
                 save.send(SaveRequest);
             }
+
             ui.add_space(20.0);
 
             if ui.add(egui::Button::new("[ ` ] View").min_size(tool_button_size)).clicked() {
@@ -99,6 +101,9 @@ pub fn update_toolbar_window(
             }
             ui.label("[TAB]: Rotate Tool");
             ui.label("[R/F]: Adjust Tool Size");
+            ui.label("[H]: Toggle road graph");
+            ui.label("[G]: Toggle grid");
+            ui.label("[V]: Toggle ai view");
             ui.add_space(20.0);
 
             let spawn_text = match state.get() {
