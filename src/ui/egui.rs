@@ -125,6 +125,8 @@ pub fn update_toolbar_window(
             ui.add_space(20.0);
             ui.label("[Q/E]: Rotate");
             ui.label("[WASD]: Pan");
+            ui.add_space(20.0);
+            ui.label("[K/M]: Adjust Sunlight");
         });
 }
 

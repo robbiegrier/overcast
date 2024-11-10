@@ -323,7 +323,6 @@ fn spawn_roads(
     let mut grid = grid_query.single_mut();
 
     for &RequestRoad { area, orientation } in spawner.read() {
-        println!("spawn road");
         let width = match orientation {
             GAxis::Z => area.cell_dimensions().x,
             GAxis::X => area.cell_dimensions().y,
