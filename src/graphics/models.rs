@@ -37,8 +37,8 @@ impl Models {
             vehicle_models: vec![
                 VehicleModelData::from_voxcar(1, 1.0, 0.0),
                 VehicleModelData::from_voxcar(2, 1.0, 0.0),
-                VehicleModelData::from_voxcar(3, 1.25, 0.05),
-                VehicleModelData::from_voxcar(4, 1.1, 0.0),
+                VehicleModelData::from_voxcar(3, 1.5, 0.2),
+                VehicleModelData::from_voxcar(4, 1.2, 0.01),
                 VehicleModelData::from_voxcar(5, 1.0, 0.0),
             ],
         }

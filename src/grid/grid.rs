@@ -134,12 +134,7 @@ fn spawn_grid(mut commands: Commands) {
 #[derive(Component)]
 pub struct Ground;
 
-fn spawn_ground(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<StandardMaterial>>,
-    asset_server: Res<AssetServer>,
-) {
+fn spawn_ground(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
     commands.spawn((
         PbrBundle {
             mesh: meshes.add(Plane3d::default().mesh().size(GRID_DIAMETER as f32 * 100.0, GRID_DIAMETER as f32 * 100.0)),
@@ -148,12 +143,6 @@ fn spawn_ground(
         },
         Ground,
     ));
-
-    commands.spawn((SceneBundle {
-        scene: asset_server.load("models/terrain.glb#Scene0"),
-        transform: Transform::from_translation(Vec3::new(-550.0, -45.0, 450.0)),
-        ..default()
-    },));
 }
 
 fn spawn_grid_visualization(mut commands: Commands) {

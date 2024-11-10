@@ -3,6 +3,10 @@ use std::ops::Range;
 use crate::grid::grid::*;
 use bevy::{
     core_pipeline::{bloom::BloomSettings, tonemapping::Tonemapping},
+    core_pipeline::{
+        fxaa::Fxaa,
+        prepass::{DeferredPrepass, DepthPrepass, MotionVectorPrepass},
+    },
     input::mouse::MouseWheel,
     pbr::ClusterConfig,
     prelude::*,
@@ -124,6 +128,10 @@ fn spawn_camera(mut commands: Commands) {
             dynamic_resizing: true,
             z_config: Default::default(),
         },
+        DepthPrepass,
+        MotionVectorPrepass,
+        DeferredPrepass,
+        Fxaa::default(),
         BloomSettings::NATURAL,
         PlayerCameraController::new(),
     ));

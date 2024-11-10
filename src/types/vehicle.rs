@@ -32,8 +32,8 @@ pub enum AiVisualizationState {
 
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum VehicleSpawnState {
-    #[default]
     Off,
+    #[default]
     On,
 }
 
@@ -220,9 +220,8 @@ fn update_speed(
     other_query: Query<&RaycastSource<VehicleRaycastSet>, With<Vehicle>>,
     time: Res<Time>,
     segment_query: Query<&RoadSegment>,
-    mut commands: Commands,
 ) {
-    for (ent, mut vehicle, raycast) in &mut vehicle_query {
+    vehicle_query.par_iter_mut().for_each(|(ent, mut vehicle, raycast)| {
         let mut target_speed = 1.0 * vehicle.speed_multiplier;
 
         if let Ok(segment) = segment_query.get(vehicle.path[vehicle.path_index]) {
@@ -236,7 +235,7 @@ fn update_speed(
             if let Ok(other_raycast) = other_query.get(other) {
                 if let Some((other2, _)) = other_raycast.get_nearest_intersection() {
                     if other2 == ent {
-                        continue;
+                        return;
                     }
                 }
             }
@@ -245,12 +244,8 @@ fn update_speed(
                 vehicle.speed -= (slow_dist - hit.distance()).max(0.0) * time.delta_seconds();
                 vehicle.speed = vehicle.speed.max(VEHICLE_MIN_SPEED);
             }
-
-            if hit.distance() < 0.001 {
-                commands.entity(ent).despawn_recursive();
-            }
         }
-    }
+    });
 }
 
 fn execute_movement(mut vehicle_query: Query<(&Vehicle, &mut Transform)>, time: Res<Time>) {
@@ -543,8 +538,11 @@ fn spawn_vehicle(
                     },
                     Vehicle::new(path.clone(), max_speed),
                     RaycastMesh::<VehicleRaycastSet>::default(),
-                    RaycastSource::<VehicleRaycastSet>::new_transform_empty(),
+                    RaycastSource::<VehicleRaycastSet>::new_transform(Mat4::from_translation(Vec3::new(0.0, 0.0, 10.0))),
                 ))
+                .with_children(|builder| {
+                    builder.spawn(SpotLightBundle { ..Default::default() });
+                })
                 .id();
 
             for step in path {

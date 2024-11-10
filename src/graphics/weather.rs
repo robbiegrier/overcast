@@ -1,5 +1,5 @@
 use crate::schedule::UpdateStage;
-use bevy::prelude::*;
+use bevy::{pbr::CascadeShadowConfigBuilder, prelude::*};
 
 pub struct WeatherPlugin;
 
@@ -16,6 +16,12 @@ fn spawn_lights(mut commands: Commands) {
             shadows_enabled: true,
             ..default()
         },
+        cascade_shadow_config: CascadeShadowConfigBuilder {
+            num_cascades: 3,
+            maximum_distance: 100.0,
+            ..default()
+        }
+        .into(),
         ..default()
     });
 }
