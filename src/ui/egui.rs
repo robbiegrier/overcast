@@ -69,7 +69,8 @@ pub fn update_toolbar_window(
 
     egui::Window::new("Tools")
         .resizable(false)
-        .collapsible(false)
+        .collapsible(true)
+        .default_open(false)
         .anchor(Align2::LEFT_BOTTOM, (0.0, 0.0))
         .constrain(true)
         .movable(false)
@@ -96,6 +97,8 @@ pub fn update_toolbar_window(
             if ui.add(egui::Button::new("[ 3 ] Bulldozer").min_size(tool_button_size)).clicked() {
                 change_tool.send(ChangeToolRequest(ToolState::Eraser));
             }
+            ui.label("[TAB]: Rotate Tool");
+            ui.label("[R/F]: Adjust Tool Size");
             ui.add_space(20.0);
 
             let spawn_text = match state.get() {
@@ -138,7 +141,8 @@ pub fn update_stats_window(
 
     egui::Window::new("Stats")
         .resizable(false)
-        .collapsible(false)
+        .collapsible(true)
+        .default_open(false)
         .anchor(Align2::RIGHT_BOTTOM, (0.0, 0.0))
         .constrain(true)
         .movable(false)
