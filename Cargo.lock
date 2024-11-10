@@ -1886,21 +1886,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "final_project"
-version = "0.1.0"
-dependencies = [
- "bevy",
- "bevy_egui",
- "bevy_infinite_grid",
- "bevy_mod_raycast",
- "catppuccin-egui",
- "log",
- "rand",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "fixedbitset"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3051,6 +3036,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52f0d54bde9774d3a51dcf281a5def240c71996bc6ca05d2c847ec8b2b216166"
 dependencies = [
  "libredox",
+]
+
+[[package]]
+name = "overcast"
+version = "1.0.0"
+dependencies = [
+ "bevy",
+ "bevy_egui",
+ "bevy_infinite_grid",
+ "bevy_mod_raycast",
+ "catppuccin-egui",
+ "log",
+ "rand",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
