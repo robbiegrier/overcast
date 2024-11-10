@@ -13,6 +13,8 @@ use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Write};
 
+use super::fallback;
+
 const SAVEFILE: &str = "assets/saves/world.json";
 
 pub struct SavePlugin;
@@ -63,6 +65,22 @@ pub fn load_from_disk(
             }
 
             println!("Loaded the game from {:?}", SAVEFILE);
+        }
+    } else {
+        if let Ok(save_data) = serde_json::from_str::<SaveObject>(fallback::FALLBACK_SAVE_DATA) {
+            for area in save_data.buildings {
+                building_event.send(RequestBuilding::new(area));
+            }
+
+            for area in save_data.intersections {
+                inter_event.send(RequestIntersection::new(area));
+            }
+
+            for (area, orient) in save_data.roads {
+                segment_event.send(RequestRoad::new(area, orient));
+            }
+
+            println!("Loaded the game from fallback");
         }
     }
 }

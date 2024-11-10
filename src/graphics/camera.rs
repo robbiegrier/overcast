@@ -17,6 +17,11 @@ const KEYBOARD_PAN_SPEED: f32 = 10.0;
 const KEYBOARD_ROTATE_SPEED: f32 = 1.0;
 const MOUSE_PAN_SPEED: f32 = 5.0;
 const MOUSE_ROTATE_SPEED: f32 = 0.25;
+
+#[cfg(target_arch = "wasm32")]
+const SCROLL_SPEED: f32 = 10.0;
+
+#[cfg(not(target_arch = "wasm32"))]
 const SCROLL_SPEED: f32 = 200.0;
 
 #[derive(Component, Debug)]
