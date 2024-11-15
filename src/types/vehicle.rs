@@ -21,6 +21,7 @@ const VEHICLE_MAX_SPEED: f32 = 1.5;
 const VEHICLE_MIN_SPEED: f32 = 0.01;
 const MAX_SPEED_VARIATION: f32 = 0.5;
 const SPAWN_TIME_SECONDS: f32 = 0.5;
+const BUILDINGS_PER_VEHICLE: usize = 5;
 const INTERSECTION_OFFSET: f32 = 0.2;
 
 #[derive(States, Default, Debug, Clone, PartialEq, Eq, Hash)]
@@ -411,10 +412,18 @@ fn spawn_vehicle_on_timer(
     mut request: EventWriter<RequestVehicleSpawn>,
     time: Res<Time>,
     mut spawn_timer: ResMut<SpawnTimer>,
+    building_query: Query<(), With<Building>>,
+    vehicle_query: Query<&Vehicle>,
 ) {
     spawn_timer.timer.tick(time.delta());
     if spawn_timer.timer.just_finished() {
-        request.send(RequestVehicleSpawn);
+        let num_buildings = building_query.iter().count();
+        let max_vehicles = num_buildings / BUILDINGS_PER_VEHICLE;
+        let num_vehicles = vehicle_query.iter().count();
+
+        if num_vehicles < max_vehicles {
+            request.send(RequestVehicleSpawn);
+        }
     }
 }
 
@@ -424,7 +433,6 @@ fn spawn_vehicle(
     mut inter_query: Query<(Entity, &mut Intersection)>,
     mut commands: Commands,
     mut request: EventReader<RequestVehicleSpawn>,
-    asset_server: Res<AssetServer>,
     models: Res<Models>,
 ) {
     for _ in request.read() {
@@ -528,8 +536,8 @@ fn spawn_vehicle(
             let spawn = commands
                 .spawn((
                     PbrBundle {
-                        mesh: asset_server.load(model.mesh.clone()),
-                        material: asset_server.load(model.material.clone()),
+                        mesh: model.mesh.clone(),
+                        material: model.material.clone(),
                         transform: Transform::from_translation(
                             start_location.with_y(start_location.y + model.vertical_offset),
                         )

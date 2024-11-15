@@ -4,22 +4,22 @@ pub struct ModelPlugin;
 
 impl Plugin for ModelPlugin {
     fn build(&self, app: &mut App) {
-        app.insert_resource(Models::new());
+        app.insert_resource(Models::new()).add_systems(Startup, load_models);
     }
 }
 
 pub struct VehicleModelData {
-    pub mesh: String,
-    pub material: String,
+    pub mesh: Handle<Mesh>,
+    pub material: Handle<StandardMaterial>,
     pub scale: f32,
     pub vertical_offset: f32,
 }
 
 impl VehicleModelData {
-    pub fn from_voxcar(i: i32, scale: f32, vertical_offset: f32) -> Self {
+    pub fn from_voxcar(i: i32, scale: f32, vertical_offset: f32, asset_server: &Res<AssetServer>) -> Self {
         VehicleModelData {
-            mesh: format!("models/voxcar-{:?}.gltf#Mesh0/Primitive0", i),
-            material: format!("models/voxcar-{:?}.gltf#Material0", i),
+            mesh: asset_server.load(format!("models/voxcar-{:?}.gltf#Mesh0/Primitive0", i)),
+            material: asset_server.load(format!("models/voxcar-{:?}.gltf#Material0", i)),
             scale,
             vertical_offset,
         }
@@ -34,13 +34,15 @@ pub struct Models {
 impl Models {
     pub fn new() -> Self {
         Models {
-            vehicle_models: vec![
-                VehicleModelData::from_voxcar(1, 1.0, 0.0),
-                VehicleModelData::from_voxcar(2, 1.0, 0.0),
-                VehicleModelData::from_voxcar(3, 1.5, 0.2),
-                VehicleModelData::from_voxcar(4, 1.2, 0.01),
-                VehicleModelData::from_voxcar(5, 1.0, 0.0),
-            ],
+            vehicle_models: Vec::new(),
         }
     }
+}
+
+fn load_models(asset_server: Res<AssetServer>, mut models: ResMut<Models>) {
+    models.vehicle_models.push(VehicleModelData::from_voxcar(1, 1.0, 0.0, &asset_server));
+    models.vehicle_models.push(VehicleModelData::from_voxcar(2, 1.0, 0.0, &asset_server));
+    models.vehicle_models.push(VehicleModelData::from_voxcar(3, 1.5, 0.2, &asset_server));
+    models.vehicle_models.push(VehicleModelData::from_voxcar(4, 1.2, 0.01, &asset_server));
+    models.vehicle_models.push(VehicleModelData::from_voxcar(5, 1.0, 0.0, &asset_server));
 }
